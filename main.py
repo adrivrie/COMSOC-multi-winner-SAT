@@ -17,7 +17,8 @@ def allAlternatives():
     return range(m)
 
 def allBallots():
-    return product(*([[0,1]]*m))
+    r = product(*([[0,1]]*m))
+    return [x for x in r if x not in [tuple([0]*m), tuple([1]*m)]]
 
 def allProfiles():
     return product(*([list(allBallots())]*n))
