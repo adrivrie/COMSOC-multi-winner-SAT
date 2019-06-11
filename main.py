@@ -64,9 +64,11 @@ def isSubsetOf(ballot1, ballot2, strict=True):
         return True
 
 def intersection(committee, ballot):
+    result = list(ballot)
     for i in allAlternatives():
-        if ballot[i] and i in committee:
-            yield i
+        if not i in committee:
+            result[i] = 0
+    return tuple(result)
 
 def strictlyBetter(voter, committee1, committee2, profile):
     """
