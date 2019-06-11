@@ -32,7 +32,7 @@ def singletonBallot(a):
     return tuple(ballot)
 
 def approves(voter, alternative, profile):
-    return alternative in profile[voter]
+    return profile[voter][alternative]
 
 def ivariants(voter, profile):
     result = []
