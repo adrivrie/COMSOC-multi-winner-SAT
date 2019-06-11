@@ -1,6 +1,8 @@
-from math import factorial
+from __future__ import division
+from math import factorial, ceil
 from itertools import product, combinations
-n = 2
+import pylgl
+n = 3
 m = 4
 k = 3
 
@@ -22,6 +24,11 @@ def allProfiles():
 
 def allCommittees():
     return combinations(allAlternatives(), k)
+
+def singletonBallot(a):
+    ballot = [0]*m
+    ballot[a] = 1
+    return tuple(ballot)
 
 def approves(voter, alternative, profile):
     return alternative in profile[voter]
@@ -68,8 +75,17 @@ def strictlyBetter(voter, committee1, committee2, profile):
     return isSubsetOf(intersection(committee1, profile[voter]), intersection(committee2, profile[voter]))
 
 
+def isPartylistProfile(profile):
+    """
+    A profile is a party-list profile iff, after removing duplicate ballots,
+    there is no more overlap in the ballots
+    """
 
-
+    unique_ballots = set(profile)
+    for e in zip(*unique_ballots):
+        if sum(e)>1:
+            return False
+    return True
 
 
 def posLiteral(committee, profile):
@@ -90,7 +106,8 @@ def negLiteral(committee, profile):
 
 def cnfStrategyproofness():
     """
-    This axiom currently works according to "Strategyproofness" in D. Peters' paper, and therefore (might) assume resoluteness
+    This axiom currently works according to "Strategyproofness" in D. Peters' 
+    paper, and therefore (might) assume resoluteness
     """
     cnf = []
     for i in allVoters():
@@ -101,6 +118,38 @@ def cnfStrategyproofness():
                         for c2 in allCommittees():
                             if strictlyBetter(i, c1, c2, p1):
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
+    return cnf
+
+def cnfProportionality():
+    """
+    Corresponds to Peters' weakest proportionality axiom, which he calls 
+    "proportionality", assumes resoluteness
+    """
+    cnf = []
+    for p in allProfiles():
+        if isPartylistProfile(p):
+            for a in allAlternatives():
+                if p.count(singletonBallot(a)) >= ceil(n/k):
+                    clause = []
+                    for c in allCommittees():
+                        if a in c:
+                            clause.append(posLiteral(c, p))
+                    cnf.append(clause)
+    return cnf
+
+def cnfProportionality2():
+    """
+    Corresponds to Peters' weakest proportionality axiom, which he calls 
+    "proportionality"
+    """
+    cnf = []
+    for p in allProfiles():
+        if isPartylistProfile(p):
+            for a in allAlternatives():
+                if p.count(singletonBallot(a)) >= ceil(n/k):
+                    for c in allCommittees():
+                        if a not in c:
+                            cnf.append([negLiteral(c, p)])
     return cnf
 
 def cnfAtLeastOne():
@@ -120,6 +169,14 @@ def cnfResolute():
     return cnf
 
 if __name__ == '__main__':
-    for i in cnfStrategyproofness():
-        print(i)
-    print(len(cnfStrategyproofness()))
+    cnf = []
+    cnf += cnfAtLeastOne()
+    cnf += cnfResolute()
+    cnf += cnfStrategyproofness()
+    cnf += cnfProportionality2()
+    ans = pylgl.solve(cnf)
+    a = sorted([x for x in ans if x>0])
+    for i in a:
+        l = int2lit[i]
+        #if l[0] != (0,1,2):
+        print(l)
