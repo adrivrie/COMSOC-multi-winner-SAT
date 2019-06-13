@@ -2,6 +2,7 @@ from __future__ import division
 from math import factorial, ceil
 from itertools import product, combinations
 import pylgl
+#from IPython import embed
 n = 3
 m = 4
 k = 3
@@ -25,6 +26,24 @@ def allProfiles():
 
 def allCommittees():
     return combinations(allAlternatives(), k)
+
+def addApproval(voter, profile, candidates):
+    profile = list(profile)
+    new_profile = []
+    current_voter = 0
+    for ballot in profile:
+        if current_voter != voter:
+            new_profile.append(ballot)
+        else:
+            new_ballot = []
+            for i in range(m):
+                if i in candidates:
+                    new_ballot.append(1)
+                else:
+                    new_ballot.append(ballot[i])
+            new_profile.append(tuple(new_ballot))
+        current_voter += 1
+    return tuple(new_profile)
 
 def singletonBallot(a):
     ballot = [0]*m
@@ -77,6 +96,28 @@ def strictlyBetter(voter, committee1, committee2, profile):
     """
     return isSubsetOf(intersection(committee1, profile[voter]), intersection(committee2, profile[voter]))
 
+def toBinaryTuple(subset):
+    result = []
+    for i in range(m):
+        if i in subset:
+            result.append(1)
+        else:
+            result.append(0)
+    return tuple(result)
+
+def toSubset(binaryTuple):
+    subset = []
+    for i in range(m):
+        if binaryTuple[i]:
+            subset.append(i)
+    return tuple(subset)
+
+
+def subsetOf(superset, subset):
+    for i in range(m):
+        if superset[i] == 0 and subset[i] == 1:
+            return False
+    return True
 
 def isPartylistProfile(profile):
     """
@@ -105,6 +146,38 @@ def posLiteral(committee, profile):
 def negLiteral(committee, profile):
     return -posLiteral(committee, profile)
 
+
+def cnfSSMWOPI():
+    # Existence condition
+    cnf = []
+    for p in allProfiles():
+        for G in allBallots():
+            if sum(G) < k:
+                for i in allVoters():
+                    if intersection(toSubset(p[i]), G) == tuple([0]*m):
+                        for W in allBallots():
+                            if subsetOf(G, W):
+                                clause = [negLiteral(toSubset(W), p)]
+                                for Wprime in allBallots():
+                                    if subsetOf(G, Wprime):
+                                        clause.append(posLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G))))
+                                cnf.append(clause)
+
+
+    # Universal condition
+    for p in allProfiles():
+        for G in allBallots():
+            if sum(G) < k:
+                for i in allVoters():
+                    if intersection(toSubset(p[i]), G) == tuple([0]*m):
+                        for Wprime in allBallots():
+                            if not subsetOf(G, Wprime):
+                                clause = [negLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G)))]
+                                for W in allBallots():
+                                    if not subsetOf(G, Wprime):
+                                        clause.append(posLiteral(toSubset(W), p))
+                                cnf.append(clause)
+    return cnf
 
 
 def cnfStrategyproofness():
@@ -172,11 +245,13 @@ def cnfResolute():
     return cnf
 
 if __name__ == '__main__':
+    #embed()
     cnf = []
     cnf += cnfAtLeastOne()
-    cnf += cnfResolute()
-    cnf += cnfStrategyproofness()
+    #cnf += cnfResolute()
+    #cnf += cnfStrategyproofness()
     cnf += cnfProportionality2()
+    cnf += cnfSSMWOPI()
     ans = pylgl.solve(cnf)
     a = sorted([x for x in ans if x>0])
     for i in a:
