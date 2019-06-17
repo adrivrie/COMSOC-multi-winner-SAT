@@ -2,6 +2,7 @@ from __future__ import division
 from math import factorial, ceil
 from itertools import product, combinations
 import pylgl
+from tqdm import tqdm
 #from IPython import embed
 n = 3
 m = 4
@@ -19,7 +20,7 @@ def allAlternatives():
 
 def allBallots():
     r = product(*([[0,1]]*m))
-    return [x for x in r if x not in [tuple([0]*m), tuple([1]*m)]]
+    return r
 
 def allProfiles():
     return product(*([list(allBallots())]*n))
@@ -131,6 +132,20 @@ def isPartylistProfile(profile):
             return False
     return True
 
+def PAVscore(profile, committee):
+    """
+    For very, very large k (>300) this function does not work well enough
+    because of floating point errors
+    """
+    score = 0
+    for voter in profile:
+        approvecount = 0
+        for elected in committee:
+            if voter[elected]:
+                approvecount+=1
+        for i in range(approvecount):
+            score+=(1/(i+1))
+    return score
 
 def posLiteral(committee, profile):
     global litcount, lit2int, int2lit
@@ -146,39 +161,71 @@ def posLiteral(committee, profile):
 def negLiteral(committee, profile):
     return -posLiteral(committee, profile)
 
+def cnfPAV():
+    """
+    Calculates the PAV score, and returns a negative literal for those
+    committees that do not maximize it.
+
+    Not as fast as it can be, but clear and not a bottleneck.
+    """
+
+
+    cnf  = []
+    for p in tqdm(list(allProfiles())):
+        comscore = []
+        # get all scores
+        for c in allCommittees():
+            score = PAVscore(p,c)
+            comscore.append((c, score))
+        # calculate the maximum score
+        maxscore = 0
+        for c,s in comscore:
+            maxscore = max(maxscore, s)
+        # add all suboptimal committees as neglits
+        for c,s in comscore:
+            if s + 1e-5 < maxscore:
+                cnf.append([negLiteral(c,p)])
+    return cnf
 
 def cnfSSMWOPI():
     # Existence condition
     cnf = []
-    for p in allProfiles():
+    for p in tqdm(list(allProfiles())):
         for G in allBallots():
-            if sum(G) < k:
+            if sum(G) <= k: #changed
                 for i in allVoters():
                     if intersection(toSubset(p[i]), G) == tuple([0]*m):
                         for W in allBallots():
+                            if sum(W) != k: #added
+                                continue #added
                             if subsetOf(G, W):
                                 clause = [negLiteral(toSubset(W), p)]
                                 for Wprime in allBallots():
+                                    if sum(Wprime) != k: #added
+                                        continue #added
                                     if subsetOf(G, Wprime):
                                         clause.append(posLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G))))
                                 cnf.append(clause)
 
 
     # Universal condition
-    for p in allProfiles():
+    for p in tqdm(list(allProfiles())):
         for G in allBallots():
-            if sum(G) < k:
+            if sum(G) <= k: #changed
                 for i in allVoters():
                     if intersection(toSubset(p[i]), G) == tuple([0]*m):
                         for Wprime in allBallots():
+                            if sum(Wprime) != k: #added
+                                continue #added
                             if not subsetOf(G, Wprime):
                                 clause = [negLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G)))]
                                 for W in allBallots():
-                                    if not subsetOf(G, Wprime):
+                                    if sum(W) != k: #added
+                                        continue #added
+                                    if not subsetOf(G, W): #changed
                                         clause.append(posLiteral(toSubset(W), p))
                                 cnf.append(clause)
     return cnf
-
 
 def cnfStrategyproofness():
     """
@@ -196,10 +243,46 @@ def cnfStrategyproofness():
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
     return cnf
 
-def cnfProportionality():
+def cardinalityOfOverlap(ballot, committee):
+    c=0
+    for candidate in committee:
+        c += ballot[candidate] 
+    return c
+
+def cnfOptimisticCardinalityStrategyproofness():
+    cnf  = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c2 in allCommittees():
+                    clause = [negLiteral(c2, p2)]
+                    card = cardinalityOfOverlap(p1[i], c2)
+                    for c1 in allCommittees():
+                        if cardinalityOfOverlap(p1[i], c1) >= card:
+                            clause.append(posLiteral(c1, p1))
+                    cnf.append(clause)
+    return cnf
+
+def cnfPessimisticCardinalityStrategyproofness():
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c1 in allCommittees():
+                    clause = [negLiteral(c1, p1)]
+                    card = cardinalityOfOverlap(p1[i], c1)
+                    for c2 in allCommittees():
+                        if cardinalityOfOverlap(p2[i],c2) <= card:
+                            clause.append(posLiteral(c2, p2))
+    return cnf
+
+def cnfProportionalityExistence():
     """
     Corresponds to Peters' weakest proportionality axiom, which he calls 
-    "proportionality", assumes resoluteness
+    "proportionality"
+
+    In the irresolute case, states that one of the winners should satisfy
+    proportionality
     """
     cnf = []
     for p in allProfiles():
@@ -213,13 +296,17 @@ def cnfProportionality():
                     cnf.append(clause)
     return cnf
 
-def cnfProportionality2():
+
+def cnfProportionalityUniversal():
     """
     Corresponds to Peters' weakest proportionality axiom, which he calls 
     "proportionality"
+    
+    In the irresolute case, states that all winners should satisfy
+    proportionality
     """
     cnf = []
-    for p in allProfiles():
+    for p in tqdm(list(allProfiles())):
         if isPartylistProfile(p):
             for a in allAlternatives():
                 if p.count(singletonBallot(a)) >= ceil(n/k):
@@ -228,9 +315,58 @@ def cnfProportionality2():
                             cnf.append([negLiteral(c, p)])
     return cnf
 
+def satisfiesJR(committee,profile):
+    threshold = n/k
+
+    uncovered_ballots = []
+    for ballot in profile:
+        reps = 0
+        for c in committee:
+            reps+=ballot[c]
+        if not reps:
+            uncovered_ballots.append(ballot)
+
+    votespercandidate = [0]*m
+    for ballot in uncovered_ballots:
+        for candidate, vote in enumerate(ballot):
+            votespercandidate[candidate]+=vote
+    for n_votes in votespercandidate:
+        if n_votes >= threshold:
+            return False
+    return True
+
+def cnfJustifiedRepresentation():
+    """
+    In irresolute case: all winners must satisfy
+    """
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for c in allCommittees():
+            if not satisfiesJR(c, p):
+                cnf.append([negLiteral(c,p)])
+    return cnf
+
+def satisfiesEJR(committee, profile):
+    """
+    This is coNP-complete
+    """
+    
+
+def cnfExtendedJustifiedRepresentation():
+    """
+    In irresolute case: all winners must satisfy
+    """
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for c in allCommittees():
+            if not satisfiesEJR(c, p):
+                cnf.append([negLiteral(c,p)])
+    return cnf
+
+
 def cnfAtLeastOne():
     cnf = []
-    for r in allProfiles():
+    for r in tqdm(list(allProfiles())):
         clause = []
         for c in allCommittees():
             clause.append(posLiteral(c, r))
@@ -248,10 +384,23 @@ if __name__ == '__main__':
     #embed()
     cnf = []
     cnf += cnfAtLeastOne()
+    print("Added 'at least one' constraint")
     #cnf += cnfResolute()
     #cnf += cnfStrategyproofness()
-    cnf += cnfProportionality2()
-    cnf += cnfSSMWOPI()
+    #cnf += cnfProportionalityUniversal()
+    #print("Added proportionality constraint")
+    #cnf += cnfSSMWOPI()
+    #print("Added SSMWOPI constraint")
+    #cnf += cnfPAV()
+    #print("Added PAV constraint")
+    cnf += cnfJustifiedRepresentation()
+    print("Added JR")
+
+    cnf += cnfPessimisticCardinalityStrategyproofness()
+    print("Added immune to pessimism")
+    cnf += cnfOptimisticCardinalityStrategyproofness()
+    print("Added immune to optimism")
+    print("Solving...")
     ans = pylgl.solve(cnf)
     a = sorted([x for x in ans if x>0])
     for i in a:
