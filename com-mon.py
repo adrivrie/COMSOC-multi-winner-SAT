@@ -268,11 +268,49 @@ def cnfJustifiedRepresentation():
                 cnf.append([negLiteral(c,p)])
     return cnf
 
+# Note: assumes that both committee and profile are binary vectors
 def satisfiesEJR(committee, profile):
     """
     This is coNP-complete
     """
+    k = sum(committee)
     
+    # calculate for each voter how many representatives he has in committee
+    voterRepr = []
+    for ballot in profile:
+        representatives = 0
+        for c,b in zip(committee, ballot):
+            if c and b:
+                representatives += 1
+        voterRepr.append(representatives)
+
+    for l in range(1, k+1):
+        # calculate all voters with < l representatives
+        underRepres = []
+        for voter, repres in enumerate(voterRepr):
+            if repres < l:
+                underRepres.append(voter)
+
+        minSize = ceil(l * (n/k) - 1e-5)
+
+        # find all subsets of size l * (n/k)
+        for comb in combinations(underRepres, minSize):
+            
+            # count how many alternatives they all agree on
+            approveCount = 0
+            for i in range(m):
+                allApprove = True
+                for voter in comb:
+                    if profile[voter][i] != 1:
+                        allApprove = False
+                if allApprove:
+                    approveCount += 1
+
+            # this should not be >= l if it satisfies EJR
+            if approveCount >= l:
+                return False
+
+    return True
 
 def cnfExtendedJustifiedRepresentation():
     """
@@ -317,8 +355,10 @@ if __name__ == '__main__':
     #print('cnfProportionality:')
     #cnf += cnfProportionality()
     #cnf += cnfPAV()
-    print("cnfJustifiedRepresentation")
-    cnf += cnfJustifiedRepresentation()
+    #print("cnfJustifiedRepresentation")
+    #cnf += cnfJustifiedRepresentation()
+    print("cnfExtendedJustifiedRepresentation")
+    cnf += cnfExtendedJustifiedRepresentation()
     print("cnfPessimisticCardinalityStrategyproofness")
     cnf += cnfPessimisticCardinalityStrategyproofness()
     print('cnfOptimisticCardinalityStrategyproofness')
