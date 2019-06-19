@@ -3,7 +3,7 @@ from math import factorial, ceil
 from itertools import product, combinations
 import pylgl
 from tqdm import tqdm
-#from IPython import embed
+from IPython import embed
 n = 3
 m = 4
 k = 3
@@ -346,10 +346,56 @@ def cnfJustifiedRepresentation():
                 cnf.append([negLiteral(c,p)])
     return cnf
 
+# Note: assumes that both committee and profile are binary vectors
 def satisfiesEJR(committee, profile):
     """
     This is coNP-complete
     """
+    k = sum(committee)
+    
+    # calculate for each voter how many representatives he has in committee
+    voterRepr = []
+    for ballot in profile:
+        representatives = 0
+        for c,b in zip(committee, ballot):
+            if c and b:
+                representatives += 1
+        voterRepr.append(representatives)
+
+    for l in range(1, k+1):
+        # calculate all voters with < l representatives
+        underRepres = []
+        for voter, repres in enumerate(voterRepr):
+            if repres < l:
+                underRepres.append(voter)
+
+        minSize = ceil(l * (n/k) - 1e-5)
+
+        # find all subsets of size l * (n/k)
+        for comb in combinations(underRepres, minSize):
+            
+            # count how many alternatives they all agree on
+            approveCount = 0
+            for i in range(m):
+                allApprove = True
+                for voter in comb:
+                    if profile[voter][i] != 1:
+                        allApprove = False
+                if allApprove:
+                    approveCount += 1
+
+            # this should not be >= l if it satisfies EJR
+            if approveCount >= l:
+                return False
+
+    return True
+
+
+
+    
+
+    
+
     
 
 def cnfExtendedJustifiedRepresentation():
@@ -359,7 +405,7 @@ def cnfExtendedJustifiedRepresentation():
     cnf = []
     for p in tqdm(list(allProfiles())):
         for c in allCommittees():
-            if not satisfiesEJR(c, p):
+            if not satisfiesEJR(toBinaryTuple(c), p):
                 cnf.append([negLiteral(c,p)])
     return cnf
 
@@ -382,7 +428,9 @@ def cnfResolute():
 
 if __name__ == '__main__':
     #embed()
+    #exit()
     cnf = []
+
     cnf += cnfAtLeastOne()
     print("Added 'at least one' constraint")
     #cnf += cnfResolute()
@@ -391,14 +439,14 @@ if __name__ == '__main__':
     #print("Added proportionality constraint")
     #cnf += cnfSSMWOPI()
     #print("Added SSMWOPI constraint")
-    #cnf += cnfPAV()
+    cnf += cnfPAV()
     #print("Added PAV constraint")
-    cnf += cnfJustifiedRepresentation()
+    cnf += cnfExtendedJustifiedRepresentation()
     print("Added JR")
 
-    cnf += cnfPessimisticCardinalityStrategyproofness()
+    #cnf += cnfPessimisticCardinalityStrategyproofness()
     print("Added immune to pessimism")
-    cnf += cnfOptimisticCardinalityStrategyproofness()
+    #cnf += cnfOptimisticCardinalityStrategyproofness()
     print("Added immune to optimism")
     print("Solving...")
     ans = pylgl.solve(cnf)
