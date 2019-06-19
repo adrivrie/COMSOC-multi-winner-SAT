@@ -488,6 +488,22 @@ def cnfCommitteeMonotonicity():
                 cnf.append(clause)
     return cnf
 
+def votesForCommittee(profile, committee):
+    c=0
+    for ballot in profile:
+        c+= cardinalityOfOverlap(ballot, committee)
+    return c
+
+def cnfTiebreakInFavorOfMoreVotes():
+    cnf = []
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if votesForCommittee(profile, committee1) != votesForCommittee(profile, committee2):
+                        cnf.append([negLiteral(committee1, profile), negLiteral(committee2, profile)])
+    return cnf
+
 
 # leave this for reasons
 cnfAtLeastOne()
@@ -517,10 +533,12 @@ if __name__ == '__main__':
     cnf += cnfPessimisticCardinalityStrategyproofness()
     print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
     cnf += cnfOptimisticCardinalityStrategyproofness()
-    print("cnfCommitteeMonotonicity:", file=stderr)
-    cnf += cnfCommitteeMonotonicity()
+    #print("cnfCommitteeMonotonicity:", file=stderr)
+    #cnf += cnfCommitteeMonotonicity()
     print("cnfParetoEfficiency", file=stderr)
     cnf += cnfParetoEfficiency()
+    #print("cnfTiebreakInFavorOfMoreVotes")
+    #cnf += cnfTiebreakInFavorOfMoreVotes()
 
     # Change if you want to get the clauses in file format
     if False:
