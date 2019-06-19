@@ -4,9 +4,44 @@ from itertools import product, combinations
 import pylgl
 from tqdm import tqdm
 from IPython import embed
+import os
+import pickle
+import inspect
+
+def cache(cachefile):
+    """
+    A function that creates a decorator which will use "cachefile" for caching the results of the decorated function "fn".
+    """
+    def decorator(fn):  # define a decorator for a function "fn"
+        def wrapped(*args, **kwargs):   # define a wrapper that will finally call "fn" with all arguments            
+            # if cache exists -> load it and return its content
+            # except if contents of function have changed
+            if os.path.exists(cachefile):
+                with open(cachefile, 'rb') as cachehandle:
+                    contents = pickle.load(cachehandle)
+                    if contents[1] == inspect.getsource(fn):
+                        return contents[0]
+
+            # execute the function with all arguments passed
+            res = fn(*args, **kwargs)
+
+            # write to cache file
+            with open(cachefile, 'wb') as cachehandle:
+                print("saving result to cache '%s'" % cachefile)
+                pickle.dump((res, inspect.getsource(fn)), cachehandle)
+
+            return res
+
+        return wrapped
+
+    return decorator
+
+
 n=3
 m=4
-ks = range(1, m)
+k0 = 1
+k1 = m
+ks = range(k0, k1)
 
 litcount = 0
 lit2int = {}
@@ -165,6 +200,7 @@ def cnfPAV():
                     cnf.append([negLiteral(c,p)])
     return cnf
 
+@cache("cnf_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfStrategyproofness():
     """
     This axiom currently works according to "Strategyproofness" in D. Peters' 
@@ -189,6 +225,7 @@ def cardinalityOfOverlap(ballot, committee):
         c += (candidate and vote) 
     return c
 
+@cache("cnf_optim_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfOptimisticCardinalityStrategyproofness():
     cnf  = []
     for p1 in tqdm(list(allProfiles())):
@@ -204,6 +241,7 @@ def cnfOptimisticCardinalityStrategyproofness():
                     cnf.append(clause)
     return cnf
 
+@cache("cnf_pess_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfPessimisticCardinalityStrategyproofness():
     cnf = []
     for p1 in tqdm(list(allProfiles())):
@@ -218,6 +256,7 @@ def cnfPessimisticCardinalityStrategyproofness():
                             clause.append(posLiteral(c2, p2))
     return cnf
 
+@cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfProportionality():
     """
     Corresponds to Peters' weakest proportionality axiom, which he calls 
@@ -334,6 +373,7 @@ def cnfAtLeastOne():
             cnf.append(clause)
     return cnf
 
+
 def cnfResolute():
     cnf = []
     for r in tqdm(list(allProfiles())):
@@ -342,6 +382,8 @@ def cnfResolute():
                 cnf.append([negLiteral(c1, r), negLiteral(c2, r)])
     return cnf
 
+# leave this for reasons
+cnfAtLeastOne()
 
 
 if __name__ == '__main__':
@@ -350,13 +392,14 @@ if __name__ == '__main__':
     cnf += cnfAtLeastOne()
     print("cnfResolute:")
     cnf += cnfResolute()
-    #print("cnfStrategyproofness:")
-    #cnf += cnfStrategyproofness()
-    #print('cnfProportionality:')
-    #cnf += cnfProportionality()
-    #cnf += cnfPAV()
-    #print("cnfJustifiedRepresentation")
-    #cnf += cnfJustifiedRepresentation()
+    print("cnfStrategyproofness:")
+    cnf += cnfStrategyproofness()
+    print('cnfProportionality:')
+    cnf += cnfProportionality()
+    print("cnfPAV")
+    cnf += cnfPAV()
+    print("cnfJustifiedRepresentation")
+    cnf += cnfJustifiedRepresentation()
     print("cnfExtendedJustifiedRepresentation")
     cnf += cnfExtendedJustifiedRepresentation()
     print("cnfPessimisticCardinalityStrategyproofness")
