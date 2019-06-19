@@ -2,6 +2,7 @@ from __future__ import division
 from math import factorial, ceil
 from itertools import product, combinations
 import pylgl
+from sys import stderr
 from tqdm import tqdm
 from IPython import embed
 import os
@@ -388,31 +389,44 @@ cnfAtLeastOne()
 
 if __name__ == '__main__':
     cnf = []
-    print("cnfAtLeastOne:")
+    print("cnfAtLeastOne:", file=stderr)
     cnf += cnfAtLeastOne()
-    print("cnfResolute:")
+    print("cnfResolute:", file=stderr)
     cnf += cnfResolute()
-    print("cnfStrategyproofness:")
+    print("cnfStrategyproofness:", file=stderr)
     cnf += cnfStrategyproofness()
-    print('cnfProportionality:')
+    print('cnfProportionality:', file=stderr)
     cnf += cnfProportionality()
     print("cnfPAV")
     cnf += cnfPAV()
-    print("cnfJustifiedRepresentation")
+    print("cnfJustifiedRepresentation", file=stderr)
     cnf += cnfJustifiedRepresentation()
-    print("cnfExtendedJustifiedRepresentation")
+    print("cnfExtendedJustifiedRepresentation", file=stderr)
     cnf += cnfExtendedJustifiedRepresentation()
-    print("cnfPessimisticCardinalityStrategyproofness")
+    print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
     cnf += cnfPessimisticCardinalityStrategyproofness()
-    print('cnfOptimisticCardinalityStrategyproofness')
+    print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
     cnf += cnfOptimisticCardinalityStrategyproofness()
-    print("Solving...")
-    ans = pylgl.solve(cnf)
-    a = sorted([x for x in ans if x>0])
-    for i in a:
-        l = int2lit[i]
-        #if l[0] != (0,1,2):
-        print("{} elects: {}".format(l[1], l[0]))
+
+    # Change if you want to get the clauses in file format
+    if False:
+        print("p cnf {0} {1}".format(litcount, len(cnf)))
+    
+        for clause in cnf:
+            clause = [str(c) for c in clause]
+            print(' '.join(clause) + ' 0')
+
+    
+    else:
+    
+        print("Solving...")
+        embed()
+        ans = pylgl.solve(cnf)
+        a = sorted([x for x in ans if x>0])
+        for i in a:
+            l = int2lit[i]
+            #if l[0] != (0,1,2):
+            print("{} elects: {}".format(l[1], l[0]))
 
 
 
