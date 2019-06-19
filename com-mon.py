@@ -37,10 +37,12 @@ def cache(cachefile):
     return decorator
 
 
-n=3
+n=4
 m=4
 k0 = 1
 k1 = m
+
+# this has to remain this way, lots of dependency on this, change k0 and k1
 ks = range(k0, k1)
 
 litcount = 0
@@ -382,6 +384,54 @@ def cnfResolute():
                 cnf.append([negLiteral(c1, r), negLiteral(c2, r)])
     return cnf
 
+def strictlyDominates(profile, committee1, committee2):
+    strict = False
+    for ballot in profile:
+        card1 = cardinalityOfOverlap(ballot, committee1)
+        card2 = cardinalityOfOverlap(ballot, committee2)
+        if card1 < card2:
+            return False
+        elif card1 > card2:
+            strict = True
+    return strict
+
+
+def cnfParetoEfficiency():
+    cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlyDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])
+    return cnf
+
+
+def cnfCommitteeMonotonicity():
+    cnf  = []
+
+    for profile in tqdm(list(allProfiles())):    
+        
+        # from k to k+1
+        for k in ks[:-1]:
+            for c1 in allCommitteesOfSize(k):
+                clause = [negLiteral(c1, profile)]
+                for c2 in allCommitteesOfSize(k+1):
+                    if isSubsetOf(c1, c2):
+                        clause.append(posLiteral(c2, profile))
+                cnf.append(clause)
+
+        # from k+1 to k
+        for k in ks[1:]:
+            for c1 in allCommitteesOfSize(k):
+                clause = [negLiteral(c1, profile)]
+                for c2 in allCommitteesOfSize(k-1):
+                    if isSubsetOf(c2, c1):
+                        clause.append(posLiteral(c2, profile))
+                cnf.append(clause)
+    return cnf
+
+
 # leave this for reasons
 cnfAtLeastOne()
 
@@ -390,22 +440,26 @@ if __name__ == '__main__':
     cnf = []
     print("cnfAtLeastOne:")
     cnf += cnfAtLeastOne()
-    print("cnfResolute:")
-    cnf += cnfResolute()
-    print("cnfStrategyproofness:")
-    cnf += cnfStrategyproofness()
-    print('cnfProportionality:')
-    cnf += cnfProportionality()
-    print("cnfPAV")
-    cnf += cnfPAV()
-    print("cnfJustifiedRepresentation")
-    cnf += cnfJustifiedRepresentation()
+    #print("cnfResolute:")
+    #cnf += cnfResolute()
+    #print("cnfStrategyproofness:")
+    #cnf += cnfStrategyproofness()
+    #print('cnfProportionality:')
+    #cnf += cnfProportionality()
+    #print("cnfPAV")
+    #cnf += cnfPAV()
+    #print("cnfJustifiedRepresentation")
+    #cnf += cnfJustifiedRepresentation()
     print("cnfExtendedJustifiedRepresentation")
     cnf += cnfExtendedJustifiedRepresentation()
-    print("cnfPessimisticCardinalityStrategyproofness")
-    cnf += cnfPessimisticCardinalityStrategyproofness()
-    print('cnfOptimisticCardinalityStrategyproofness')
-    cnf += cnfOptimisticCardinalityStrategyproofness()
+    #print("cnfPessimisticCardinalityStrategyproofness")
+    #cnf += cnfPessimisticCardinalityStrategyproofness()
+    #print('cnfOptimisticCardinalityStrategyproofness')
+    #cnf += cnfOptimisticCardinalityStrategyproofness()
+    print("cnfCommitteeMonotonicity:")
+    cnf += cnfCommitteeMonotonicity()
+    print("cnfParetoEfficiency")
+    cnf += cnfParetoEfficiency()
     print("Solving...")
     ans = pylgl.solve(cnf)
     a = sorted([x for x in ans if x>0])
