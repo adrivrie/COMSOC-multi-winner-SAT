@@ -40,7 +40,7 @@ def cache(cachefile):
 
 n=4
 m=4
-k0 = 1
+k0 = m-1
 k1 = m
 
 # this has to remain this way, lots of dependency on this, change k0 and k1
@@ -201,6 +201,20 @@ def cnfPAV():
             for c,s in comscore:
                 if s + 1e-5 < maxscore:
                     cnf.append([negLiteral(c,p)])
+    return cnf
+
+def sortedProfile(profile):
+    profile = list(profile)
+    sortedProfile = sorted(profile)
+    return tuple(sortedProfile)
+
+def cnfAnonymity():
+    cnf = []
+    for p in allProfiles():
+        for c in allCommittees():
+            sp = sortedProfile(p)
+            cnf.append([negLiteral(c, p), posLiteral(c, sp)])
+            cnf.append([posLiteral(c, p), negLiteral(c, sp)])
     return cnf
 
 @cache("cnf_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
@@ -441,16 +455,18 @@ if __name__ == '__main__':
     cnf = []
     print("cnfAtLeastOne:", file=stderr)
     cnf += cnfAtLeastOne()
-    print("cnfResolute:", file=stderr)
-    cnf += cnfResolute()
-    print("cnfStrategyproofness:", file=stderr)
-    cnf += cnfStrategyproofness()
-    print('cnfProportionality:', file=stderr)
-    cnf += cnfProportionality()
-    print("cnfPAV")
-    cnf += cnfPAV()
-    print("cnfJustifiedRepresentation", file=stderr)
-    cnf += cnfJustifiedRepresentation()
+    #print("cnfResolute:", file=stderr)
+    #cnf += cnfResolute()
+    #print("cnfStrategyproofness:", file=stderr)
+    #cnf += cnfStrategyproofness()
+    print("cnfAnonymity", file=stderr)
+    cnf += cnfAnonymity()
+    #print('cnfProportionality:', file=stderr)
+    #cnf += cnfProportionality()
+    #print("cnfPAV")
+    #cnf += cnfPAV()
+    #print("cnfJustifiedRepresentation", file=stderr)
+    #cnf += cnfJustifiedRepresentation()
     print("cnfExtendedJustifiedRepresentation", file=stderr)
     cnf += cnfExtendedJustifiedRepresentation()
     print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
@@ -473,14 +489,15 @@ if __name__ == '__main__':
     
     else:
     
-        print("Solving...")
-        embed()
+        print("Solving...", file=stderr)
+        #embed()
         ans = pylgl.solve(cnf)
         a = sorted([x for x in ans if x>0])
         for i in a:
             l = int2lit[i]
             #if l[0] != (0,1,2):
             print("{} elects: {}".format(l[1], l[0]))
+
 
 
 
