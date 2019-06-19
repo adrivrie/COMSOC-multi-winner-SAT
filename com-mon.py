@@ -1,6 +1,6 @@
 from __future__ import division
 from math import factorial, ceil
-from itertools import product, combinations
+from itertools import product, combinations, permutations
 import pylgl
 from sys import stderr
 from tqdm import tqdm
@@ -38,7 +38,7 @@ def cache(cachefile):
     return decorator
 
 
-n=4
+n=3
 m=4
 k0 = m-1
 k1 = m
@@ -77,6 +77,27 @@ def singletonBallot(a):
     ballot = [0]*m
     ballot[a] = 1
     return tuple(ballot)
+
+def permuteBallot(ballot, perm):
+    permBallot = []
+    for alt in allAlternatives():
+        permBallot.append(ballot[perm[alt]])
+    return tuple(permBallot)
+
+def candidatePerms(profile, committee):
+    perms = permutations(allAlternatives())
+    permProfiles = []
+    for perm in perms:
+        permProfile = []
+        for ballot in profile:
+            permBallot = permuteBallot(ballot, perm)
+            permProfile.append(permBallot)
+
+        permCommittee = permuteBallot(committee, perm)
+        permProfiles.append((tuple(permProfile), permCommittee))
+
+    return permProfiles
+
 
 def approves(voter, alternative, profile):
     return profile[voter][alternative]
@@ -207,6 +228,27 @@ def sortedProfile(profile):
     profile = list(profile)
     sortedProfile = sorted(profile)
     return tuple(sortedProfile)
+
+def cnfNeutrality():
+    cnf = []
+
+    permDict = {}
+    for p in allProfiles():
+        for c in allCommittees():
+            if p in permDict:
+                continue
+            for perm in candidatePerms(p, c):
+                permDict[perm] = (p, c)
+
+    for p in allProfiles():
+        for c in allCommittees():
+            permP = permDict[(p, c)][0]
+            permC = permDict[(p, c)][1]
+
+            cnf.append([negLiteral(c, p), posLiteral(permC, permP)])
+            cnf.append([posLiteral(c, p), negLiteral(permC, permP)])
+
+    return cnf
 
 def cnfAnonymity():
     cnf = []
@@ -461,6 +503,8 @@ if __name__ == '__main__':
     #cnf += cnfStrategyproofness()
     print("cnfAnonymity", file=stderr)
     cnf += cnfAnonymity()
+    print("cnfNeutrality", file=stderr)
+    cnf += cnfNeutrality()
     #print('cnfProportionality:', file=stderr)
     #cnf += cnfProportionality()
     #print("cnfPAV")
@@ -490,13 +534,32 @@ if __name__ == '__main__':
     else:
     
         print("Solving...", file=stderr)
+
+
+        counter = 0
+        
+        sol_list = []
+
+        for sol in pylgl.itersolve(cnf):
+            if(counter % 100 == 0):
+                print(counter)
+            a = sorted([int2lit[x] for x in sol if x > 0])
+            sol_list.append(a)
+            counter += 1
+        print(counter)
+
+
+        with open("rule-dump.pkl", 'wb') as h:
+            pickle.dump(sol_list, h)
+
         #embed()
-        ans = pylgl.solve(cnf)
+
+        """ans = pylgl.solve(cnf)
         a = sorted([x for x in ans if x>0])
         for i in a:
             l = int2lit[i]
             #if l[0] != (0,1,2):
-            print("{} elects: {}".format(l[1], l[0]))
+            print("{} elects: {}".format(l[1], l[0]))"""
 
 
 
