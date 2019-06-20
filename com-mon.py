@@ -5,6 +5,7 @@ import pylgl
 from sys import stderr
 from tqdm import tqdm
 from IPython import embed
+from functools import wraps
 import os
 import pickle
 import inspect
@@ -14,6 +15,7 @@ def cache(cachefile):
     A function that creates a decorator which will use "cachefile" for caching the results of the decorated function "fn".
     """
     def decorator(fn):  # define a decorator for a function "fn"
+        @wraps
         def wrapped(*args, **kwargs):   # define a wrapper that will finally call "fn" with all arguments            
             # if cache exists -> load it and return its content
             # except if contents of function have changed
@@ -38,7 +40,7 @@ def cache(cachefile):
     return decorator
 
 
-n=4
+n=3
 m=4
 k0 = m-1
 k1 = m
@@ -504,6 +506,27 @@ def cnfTiebreakInFavorOfMoreVotes():
                     if votesForCommittee(profile, committee1) != votesForCommittee(profile, committee2):
                         cnf.append([negLiteral(committee1, profile), negLiteral(committee2, profile)])
     return cnf
+
+
+def makeSatDump(filename):
+    sats = []
+    for cnf in [cnfAtLeastOne,
+                cnfResolute,
+                cnfStrategyproofness,
+                cnfAnonymity,
+                cnfNeutrality,
+                cnfProportionality,
+                cnfPAV,
+                cnfJustifiedRepresentation,
+                cnfExtendedJustifiedRepresentation,
+                cnfPessimisticCardinalityStrategyproofness,
+                cnfOptimisticCardinalityStrategyproofness,
+                cnfCommitteeMonotonicity,
+                cnfParetoEfficiency,
+                cnfTiebreakInFavorOfMoreVotes]:
+        sats.append((cnf.__name__, cnf()))
+    with open(filename, 'wb') as f:
+        pickle.dump(sats, f)
 
 
 # leave this for reasons
