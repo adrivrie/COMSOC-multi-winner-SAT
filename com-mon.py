@@ -9,6 +9,7 @@ from functools import wraps
 import os
 import pickle
 import inspect
+from copy import deepcopy
 
 def cache(cachefile):
     """
@@ -41,7 +42,7 @@ def cache(cachefile):
     return decorator
 
 
-n=3
+n=4
 m=4
 k0 = m-1
 k1 = m
@@ -106,18 +107,12 @@ def approves(voter, alternative, profile):
     return profile[voter][alternative]
 
 def ivariants(voter, profile):
-    result = []
-    for p in allProfiles():
-        ivar = True
-        for v in allVoters():
-            if v==voter:
-                continue
-            if p[v] != profile[v]:
-                ivar=False
-                break
-        if ivar:
-            result.append(p)
-    return result
+    ivar = list(profile)
+    for ballot in allBallots():
+        result = deepcopy(ivar)
+        result[voter] = ballot
+        yield tuple(result)
+
 
 def approvalCount(voter, profile, committee):
     c=0
@@ -535,8 +530,6 @@ cnfAtLeastOne()
 
 
 if __name__ == '__main__':
-    makeSatDump('allsats343.pickle')
-    exit()
     cnf = []
     print("cnfAtLeastOne:", file=stderr)
     cnf += cnfAtLeastOne()
