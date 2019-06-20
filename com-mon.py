@@ -38,7 +38,7 @@ def cache(cachefile):
     return decorator
 
 
-n=3
+n=4
 m=4
 k0 = m-1
 k1 = m
@@ -153,7 +153,7 @@ def strictlyBetter(voter, committee1, committee2, profile):
     successes1 = intersection(committee1, profile[voter])
     successes2 = intersection(committee2, profile[voter])
 
-    return intersection(successes1, successes2) == successes2 and successes2 != successes1
+    return intersection(successes1, successes2) == successes1 and successes2 != successes1
 
 
 def isPartylistProfile(profile):
@@ -311,8 +311,9 @@ def cnfPessimisticCardinalityStrategyproofness():
                     clause = [negLiteral(c1, p1)]
                     card = cardinalityOfOverlap(p1[i], c1)
                     for c2 in allCommitteesOfSize(k):
-                        if cardinalityOfOverlap(p2[i],c2) <= card:
+                        if cardinalityOfOverlap(p1[i], c2) <= card:
                             clause.append(posLiteral(c2, p2))
+                    cnf.append(clause)
     return cnf
 
 @cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
@@ -517,26 +518,30 @@ if __name__ == '__main__':
     #cnf += cnfResolute()
     #print("cnfStrategyproofness:", file=stderr)
     #cnf += cnfStrategyproofness()
-    print("cnfAnonymity", file=stderr)
-    cnf += cnfAnonymity()
-    print("cnfNeutrality", file=stderr)
-    cnf += cnfNeutrality()
+    #print(cnfStrategyproofness())
+    #for clause in cnfStrategyproofness():
+    #    print([int2lit[abs(x)] for x in clause])
+
+    #print("cnfAnonymity", file=stderr)
+    #cnf += cnfAnonymity()
+    #print("cnfNeutrality", file=stderr)
+    #cnf += cnfNeutrality()
     #print('cnfProportionality:', file=stderr)
     #cnf += cnfProportionality()
     #print("cnfPAV")
     #cnf += cnfPAV()
     #print("cnfJustifiedRepresentation", file=stderr)
     #cnf += cnfJustifiedRepresentation()
-    print("cnfExtendedJustifiedRepresentation", file=stderr)
-    cnf += cnfExtendedJustifiedRepresentation()
-    print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
-    cnf += cnfPessimisticCardinalityStrategyproofness()
+    #print("cnfExtendedJustifiedRepresentation", file=stderr)
+    #cnf += cnfExtendedJustifiedRepresentation()
+    #print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
+    #cnf += cnfPessimisticCardinalityStrategyproofness()
     print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
     cnf += cnfOptimisticCardinalityStrategyproofness()
     #print("cnfCommitteeMonotonicity:", file=stderr)
     #cnf += cnfCommitteeMonotonicity()
-    print("cnfParetoEfficiency", file=stderr)
-    cnf += cnfParetoEfficiency()
+    #print("cnfParetoEfficiency", file=stderr)
+    #cnf += cnfParetoEfficiency()
     #print("cnfTiebreakInFavorOfMoreVotes")
     #cnf += cnfTiebreakInFavorOfMoreVotes()
 
@@ -559,25 +564,25 @@ if __name__ == '__main__':
         sol_list = []
 
         for sol in pylgl.itersolve(cnf):
+            counter += 1
             if(counter % 100 == 0):
                 print(counter)
             a = sorted([int2lit[x] for x in sol if x > 0])
             sol_list.append(a)
-            counter += 1
         print(counter)
 
 
-        with open("rule-dump.pkl", 'wb') as h:
-            pickle.dump(sol_list, h)
+        #with open("rule-dump.pkl", 'wb') as h:
+        #    pickle.dump(sol_list, h)
 
         #embed()
 
-        """ans = pylgl.solve(cnf)
+        ans = pylgl.solve(cnf)
         a = sorted([x for x in ans if x>0])
         for i in a:
             l = int2lit[i]
             #if l[0] != (0,1,2):
-            print("{} elects: {}".format(l[1], l[0]))"""
+            print("{} elects: {}".format(l[1], l[0]))
 
 
 
