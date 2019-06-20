@@ -15,12 +15,13 @@ def cache(cachefile):
     A function that creates a decorator which will use "cachefile" for caching the results of the decorated function "fn".
     """
     def decorator(fn):  # define a decorator for a function "fn"
-        @wraps
+        @wraps(fn)
         def wrapped(*args, **kwargs):   # define a wrapper that will finally call "fn" with all arguments            
             # if cache exists -> load it and return its content
             # except if contents of function have changed
             if os.path.exists(cachefile):
                 with open(cachefile, 'rb') as cachehandle:
+                    print("Using cached result from '%s'" % cachefile)
                     contents = pickle.load(cachehandle)
                     if contents[1] == inspect.getsource(fn):
                         return contents[0]
@@ -534,6 +535,8 @@ cnfAtLeastOne()
 
 
 if __name__ == '__main__':
+    makeSatDump('allsats343.pickle')
+    exit()
     cnf = []
     print("cnfAtLeastOne:", file=stderr)
     cnf += cnfAtLeastOne()
