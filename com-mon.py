@@ -42,7 +42,7 @@ def cache(cachefile):
     return decorator
 
 
-n=4
+n=3
 m=4
 k0 = m-1
 k1 = m
@@ -73,9 +73,11 @@ def allCommittees():
             yield b
 
 def allCommitteesOfSize(k):
-    for b in allBallots():
-        if sum(b) == k:
-            yield b
+    for c in combinations(range(m), k):
+        com = [0]*m
+        for i in c:
+            com[i] = 1
+        yield tuple(com)
 
 def singletonBallot(a):
     ballot = [0]*m
@@ -314,6 +316,59 @@ def cnfPessimisticCardinalityStrategyproofness():
                     cnf.append(clause)
     return cnf
 
+@cache("cnf_optim_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfOptimisticSupersetStrategyproofness():
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c2 in allCommittees():
+                    k=sum(c2)
+                    clause = [negLiteral(c2, p2)]
+                    for c1 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c1, c2, p1):
+                            clause.append(posLiteral(c1, p1))
+                    cnf.append(clause)
+    return cnf
+
+@cache("cnf_pess_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfPessimisticSupersetStrategyproofness():
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    clause = [negLiteral(c1, p1)]
+                    for c2 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c2, c1, p1):
+                            clause.append(posLiteral(c2, p2))
+                    cnf.append(clause)
+    return cnf
+
+def strictlySupersetDominates(profile, committee1, committee2):
+    strict = False
+    for voter, ballot in enumerate(profile):
+        int1 = intersection(ballot, committee1)
+        int2 = intersection(ballot, committee2)
+        for i1, i2 in zip(int1, int2):
+            if i2 > i1:
+                return False
+            if i1 > i2:
+                strict = True
+    return strict
+
+def cnfWeakParetoEfficiency():
+    cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlySupersetDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])
+    return cnf
+
+
 @cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfProportionality():
     """
@@ -333,6 +388,7 @@ def cnfProportionality():
                             if not c[a]:
                                 cnf.append([negLiteral(c, p)])
     return cnf
+
 
 def satisfiesJR(committee, profile, debug=False):
     k = sum(committee)
@@ -553,8 +609,8 @@ if __name__ == '__main__':
     #cnf += cnfJustifiedRepresentation()
     #print("cnfExtendedJustifiedRepresentation", file=stderr)
     #cnf += cnfExtendedJustifiedRepresentation()
-    #print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
-    #cnf += cnfPessimisticCardinalityStrategyproofness()
+    print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
+    cnf += cnfPessimisticCardinalityStrategyproofness()
     print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
     cnf += cnfOptimisticCardinalityStrategyproofness()
     #print("cnfCommitteeMonotonicity:", file=stderr)
@@ -563,6 +619,13 @@ if __name__ == '__main__':
     #cnf += cnfParetoEfficiency()
     #print("cnfTiebreakInFavorOfMoreVotes")
     #cnf += cnfTiebreakInFavorOfMoreVotes()
+    #print("cnfWeakParetoEfficiency")
+    #cnf += cnfWeakParetoEfficiency()
+    #print("cnfOptimisticSupersetStrategyproofness")
+    #cnf += cnfOptimisticSupersetStrategyproofness()
+    #print("cnfPessimisticSupersetStrategyproofness")
+    #cnf += cnfPessimisticSupersetStrategyproofness()
+
 
     # Change if you want to get the clauses in file format
     if False:
