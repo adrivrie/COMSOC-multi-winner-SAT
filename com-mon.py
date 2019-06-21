@@ -341,7 +341,7 @@ def cnfPessimisticSupersetStrategyproofness():
                     k = sum(c1)
                     clause = [negLiteral(c1, p1)]
                     for c2 in allCommitteesOfSize(k):
-                        if not strictlyBetter(i, c2, c1, p1):
+                        if not strictlyBetter(i, c1, c2, p1):
                             clause.append(posLiteral(c2, p2))
                     cnf.append(clause)
     return cnf
@@ -601,32 +601,30 @@ if __name__ == '__main__':
     #cnf += cnfAnonymity()
     #print("cnfNeutrality", file=stderr)
     #cnf += cnfNeutrality()
-    #print('cnfProportionality:', file=stderr)
-    #cnf += cnfProportionality()
+    print('cnfProportionality:', file=stderr)
+    cnf += cnfProportionality()
     #print("cnfPAV")
     #cnf += cnfPAV()
     #print("cnfJustifiedRepresentation", file=stderr)
     #cnf += cnfJustifiedRepresentation()
     #print("cnfExtendedJustifiedRepresentation", file=stderr)
     #cnf += cnfExtendedJustifiedRepresentation()
-    print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
-    cnf += cnfPessimisticCardinalityStrategyproofness()
-    print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
-    cnf += cnfOptimisticCardinalityStrategyproofness()
+    #print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
+    #cnf += cnfPessimisticCardinalityStrategyproofness()
+    #print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
+    #cnf += cnfOptimisticCardinalityStrategyproofness()
     #print("cnfCommitteeMonotonicity:", file=stderr)
     #cnf += cnfCommitteeMonotonicity()
     #print("cnfParetoEfficiency", file=stderr)
     #cnf += cnfParetoEfficiency()
     #print("cnfTiebreakInFavorOfMoreVotes")
     #cnf += cnfTiebreakInFavorOfMoreVotes()
-    #print("cnfWeakParetoEfficiency")
-    #cnf += cnfWeakParetoEfficiency()
-    #print("cnfOptimisticSupersetStrategyproofness")
-    #cnf += cnfOptimisticSupersetStrategyproofness()
-    #print("cnfPessimisticSupersetStrategyproofness")
-    #cnf += cnfPessimisticSupersetStrategyproofness()
-
-
+    print("cnfWeakParetoEfficiency")
+    cnf += cnfWeakParetoEfficiency()
+    print("cnfOptimisticSupersetStrategyproofness")
+    cnf += cnfOptimisticSupersetStrategyproofness()
+    print("cnfPessimisticSupersetStrategyproofness")
+    cnf += cnfPessimisticSupersetStrategyproofness()
     # Change if you want to get the clauses in file format
     if False:
         print("p cnf {0} {1}".format(litcount, len(cnf)))
