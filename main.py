@@ -1,151 +1,18 @@
-from __future__ import division
+from __future__ import division, print_function
 from math import factorial, ceil
-from itertools import product, combinations
+from itertools import product, combinations, permutations
 import pylgl
+from sys import stderr
 from tqdm import tqdm
-from IPython import embed
-n = 3
-m = 4
-k = 3
+from copy import deepcopy
+from caching import cache
+from helperfunctions import *
 
+# necessary for converting python objects to ints (which pylgl wants)
+# also for transforming back
 litcount = 0
 lit2int = {}
 int2lit = {}
-
-def allVoters():
-    return range(n)
-
-def allAlternatives():
-    return range(m)
-
-def allBallots():
-    r = product(*([[0,1]]*m))
-    return r
-
-def allProfiles():
-    return product(*([list(allBallots())]*n))
-
-def allCommittees():
-    return combinations(allAlternatives(), k)
-
-def addApproval(voter, profile, candidates):
-    profile = list(profile)
-    new_profile = []
-    current_voter = 0
-    for ballot in profile:
-        if current_voter != voter:
-            new_profile.append(ballot)
-        else:
-            new_ballot = []
-            for i in range(m):
-                if i in candidates:
-                    new_ballot.append(1)
-                else:
-                    new_ballot.append(ballot[i])
-            new_profile.append(tuple(new_ballot))
-        current_voter += 1
-    return tuple(new_profile)
-
-def singletonBallot(a):
-    ballot = [0]*m
-    ballot[a] = 1
-    return tuple(ballot)
-
-def approves(voter, alternative, profile):
-    return profile[voter][alternative]
-
-def ivariants(voter, profile):
-    result = []
-    for p in allProfiles():
-        ivar = True
-        for v in allVoters():
-            if v==voter:
-                continue
-            if p[v] != profile[v]:
-                ivar=False
-                break
-        if ivar:
-            result.append(p)
-    return result
-
-def approvalCount(voter, profile, committee):
-    return sum([profile[voter][x] for x in committee])
-
-def isSubsetOf(ballot1, ballot2, strict=True):
-    for b1,b2 in zip(ballot1, ballot2):
-        if b1 and not b2:
-            return False
-        if b2 and not b1:
-            strict = False
-    
-    if strict:
-        return False
-    else:
-        return True
-
-def intersection(committee, ballot):
-    result = list(ballot)
-    for i in allAlternatives():
-        if not i in committee:
-            result[i] = 0
-    return tuple(result)
-
-def strictlyBetter(voter, committee1, committee2, profile):
-    """
-    Returns True if committee 2 is strictly better than committee 1, for a
-    certain voter according to a certain (truthful for i) ballotprofile
-    """
-    return isSubsetOf(intersection(committee1, profile[voter]), intersection(committee2, profile[voter]))
-
-def toBinaryTuple(subset):
-    result = []
-    for i in range(m):
-        if i in subset:
-            result.append(1)
-        else:
-            result.append(0)
-    return tuple(result)
-
-def toSubset(binaryTuple):
-    subset = []
-    for i in range(m):
-        if binaryTuple[i]:
-            subset.append(i)
-    return tuple(subset)
-
-
-def subsetOf(superset, subset):
-    for i in range(m):
-        if superset[i] == 0 and subset[i] == 1:
-            return False
-    return True
-
-def isPartylistProfile(profile):
-    """
-    A profile is a party-list profile iff, after removing duplicate ballots,
-    there is no more overlap in the ballots
-    """
-
-    unique_ballots = set(profile)
-    for e in zip(*unique_ballots):
-        if sum(e)>1:
-            return False
-    return True
-
-def PAVscore(profile, committee):
-    """
-    For very, very large k (>300) this function does not work well enough
-    because of floating point errors
-    """
-    score = 0
-    for voter in profile:
-        approvecount = 0
-        for elected in committee:
-            if voter[elected]:
-                approvecount+=1
-        for i in range(approvecount):
-            score+=(1/(i+1))
-    return score
 
 def posLiteral(committee, profile):
     global litcount, lit2int, int2lit
@@ -172,136 +39,176 @@ def cnfPAV():
 
     cnf  = []
     for p in tqdm(list(allProfiles())):
-        comscore = []
-        # get all scores
-        for c in allCommittees():
-            score = PAVscore(p,c)
-            comscore.append((c, score))
-        # calculate the maximum score
-        maxscore = 0
-        for c,s in comscore:
-            maxscore = max(maxscore, s)
-        # add all suboptimal committees as neglits
-        for c,s in comscore:
-            if s + 1e-5 < maxscore:
-                cnf.append([negLiteral(c,p)])
+        for k in ks:
+            comscore = []
+            # get all scores
+            for c in allCommitteesOfSize(k):
+                score = PAVscore(p,c)
+                comscore.append((c, score))
+            # calculate the maximum score
+            maxscore = 0
+            for c,s in comscore:
+                maxscore = max(maxscore, s)
+            # add all suboptimal committees as neglits
+            for c,s in comscore:
+                if s + 1e-5 < maxscore:
+                    cnf.append([negLiteral(c,p)])
     return cnf
 
-def cnfSSMWOPI():
-    # Existence condition
+
+def cnfNeutrality():
+    """
+    Enforces neutrality, that is, a permutation of alternatives in the
+    profile should not give a different result, except for applying the same
+    permutation to the committee
+    """
     cnf = []
-    for p in tqdm(list(allProfiles())):
-        for G in allBallots():
-            if sum(G) <= k: #changed
-                for i in allVoters():
-                    if intersection(toSubset(p[i]), G) == tuple([0]*m):
-                        for W in allBallots():
-                            if sum(W) != k: #added
-                                continue #added
-                            if subsetOf(G, W):
-                                clause = [negLiteral(toSubset(W), p)]
-                                for Wprime in allBallots():
-                                    if sum(Wprime) != k: #added
-                                        continue #added
-                                    if subsetOf(G, Wprime):
-                                        clause.append(posLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G))))
-                                cnf.append(clause)
 
+    permDict = {}
+    for p in allProfiles():
+        for c in allCommittees():
+            if p in permDict:
+                continue
+            for perm in candidatePerms(p, c):
+                permDict[perm] = (p, c)
 
-    # Universal condition
-    for p in tqdm(list(allProfiles())):
-        for G in allBallots():
-            if sum(G) <= k: #changed
-                for i in allVoters():
-                    if intersection(toSubset(p[i]), G) == tuple([0]*m):
-                        for Wprime in allBallots():
-                            if sum(Wprime) != k: #added
-                                continue #added
-                            if not subsetOf(G, Wprime):
-                                clause = [negLiteral(toSubset(Wprime), addApproval(i, p, toSubset(G)))]
-                                for W in allBallots():
-                                    if sum(W) != k: #added
-                                        continue #added
-                                    if not subsetOf(G, W): #changed
-                                        clause.append(posLiteral(toSubset(W), p))
-                                cnf.append(clause)
+    for p in allProfiles():
+        for c in allCommittees():
+            permP = permDict[(p, c)][0]
+            permC = permDict[(p, c)][1]
+
+            cnf.append([negLiteral(c, p), posLiteral(permC, permP)])
+            cnf.append([posLiteral(c, p), negLiteral(permC, permP)])
+
     return cnf
 
+def cnfAnonymity():
+    """
+    Any permutation of the ballot should give the same committees
+    """
+    cnf = []
+    for p in allProfiles():
+        for c in allCommittees():
+            sp = sortedProfile(p)
+            cnf.append([negLiteral(c, p), posLiteral(c, sp)])
+            cnf.append([posLiteral(c, p), negLiteral(c, sp)])
+    return cnf
+
+@cache("cnf_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfStrategyproofness():
     """
     This axiom currently works according to "Strategyproofness" in D. Peters' 
     paper, and therefore (might) assume resoluteness
     """
     cnf = []
-    for i in allVoters():
-        for p1 in allProfiles():
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+
             for p2 in ivariants(i, p1):
                 if isSubsetOf(p2[i], p1[i]):
                     for c1 in allCommittees():
-                        for c2 in allCommittees():
+                        k = sum(c1)
+                        for c2 in allCommitteesOfSize(k):
                             if strictlyBetter(i, c1, c2, p1):
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
     return cnf
 
-def cardinalityOfOverlap(ballot, committee):
-    c=0
-    for candidate in committee:
-        c += ballot[candidate] 
-    return c
-
+@cache("cnf_optim_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfOptimisticCardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness with respect to optimistic voters
+    """
     cnf  = []
     for p1 in tqdm(list(allProfiles())):
         for i in allVoters():
             for p2 in ivariants(i,p1):
                 for c2 in allCommittees():
+                    k = sum(c2)
                     clause = [negLiteral(c2, p2)]
                     card = cardinalityOfOverlap(p1[i], c2)
-                    for c1 in allCommittees():
+                    for c1 in allCommitteesOfSize(k):
                         if cardinalityOfOverlap(p1[i], c1) >= card:
                             clause.append(posLiteral(c1, p1))
                     cnf.append(clause)
     return cnf
 
+@cache("cnf_pess_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfPessimisticCardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness with respect to pessimistic voters
+    """
     cnf = []
     for p1 in tqdm(list(allProfiles())):
         for i in allVoters():
             for p2 in ivariants(i,p1):
                 for c1 in allCommittees():
+                    k = sum(c1)
                     clause = [negLiteral(c1, p1)]
                     card = cardinalityOfOverlap(p1[i], c1)
-                    for c2 in allCommittees():
-                        if cardinalityOfOverlap(p2[i],c2) <= card:
+                    for c2 in allCommitteesOfSize(k):
+                        if cardinalityOfOverlap(p1[i], c2) <= card:
                             clause.append(posLiteral(c2, p2))
-    return cnf
-
-def cnfProportionalityExistence():
-    """
-    Corresponds to Peters' weakest proportionality axiom, which he calls 
-    "proportionality"
-
-    In the irresolute case, states that one of the winners should satisfy
-    proportionality
-    """
-    cnf = []
-    for p in allProfiles():
-        if isPartylistProfile(p):
-            for a in allAlternatives():
-                if p.count(singletonBallot(a)) >= ceil(n/k):
-                    clause = []
-                    for c in allCommittees():
-                        if a in c:
-                            clause.append(posLiteral(c, p))
                     cnf.append(clause)
     return cnf
 
+@cache("cnf_optim_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfOptimisticSupersetStrategyproofness():
+    """
+    Superset-strategyproofness with respect to optimistic voters
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c2 in allCommittees():
+                    k=sum(c2)
+                    clause = [negLiteral(c2, p2)]
+                    for c1 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c1, c2, p1):
+                            clause.append(posLiteral(c1, p1))
+                    cnf.append(clause)
+    return cnf
 
-def cnfProportionalityUniversal():
+@cache("cnf_pess_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfPessimisticSupersetStrategyproofness():
+    """
+    Superset-strategyproofness with respect to pessimistic voters
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    clause = [negLiteral(c1, p1)]
+                    for c2 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c1, c2, p1):
+                            clause.append(posLiteral(c2, p2))
+                    cnf.append(clause)
+    return cnf
+
+def cnfWeakParetoEfficiency():
+    """
+    Don't return a committee if there is another committee where every
+    voter gets a superset of their approved candidates in the committee,
+    and at least one strict superset
+    """
+    cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlySupersetDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])
+    return cnf
+
+
+@cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfProportionality():
     """
     Corresponds to Peters' weakest proportionality axiom, which he calls 
     "proportionality"
-    
+
     In the irresolute case, states that all winners should satisfy
     proportionality
     """
@@ -309,35 +216,16 @@ def cnfProportionalityUniversal():
     for p in tqdm(list(allProfiles())):
         if isPartylistProfile(p):
             for a in allAlternatives():
-                if p.count(singletonBallot(a)) >= ceil(n/k):
-                    for c in allCommittees():
-                        if a not in c:
-                            cnf.append([negLiteral(c, p)])
+                for k in ks:
+                    if p.count(singletonBallot(a)) >= n/k-1e-5:
+                        for c in allCommitteesOfSize(k):
+                            if not c[a]:
+                                cnf.append([negLiteral(c, p)])
     return cnf
-
-def satisfiesJR(committee,profile):
-    threshold = n/k
-
-    uncovered_ballots = []
-    for ballot in profile:
-        reps = 0
-        for c in committee:
-            reps+=ballot[c]
-        if not reps:
-            uncovered_ballots.append(ballot)
-
-    votespercandidate = [0]*m
-    for ballot in uncovered_ballots:
-        for candidate, vote in enumerate(ballot):
-            votespercandidate[candidate]+=vote
-    for n_votes in votespercandidate:
-        if n_votes >= threshold:
-            return False
-    return True
 
 def cnfJustifiedRepresentation():
     """
-    In irresolute case: all winners must satisfy
+    Enforces justified representation (from the Aziz paper), in irresolute case: all winners must satisfy
     """
     cnf = []
     for p in tqdm(list(allProfiles())):
@@ -346,57 +234,6 @@ def cnfJustifiedRepresentation():
                 cnf.append([negLiteral(c,p)])
     return cnf
 
-# Note: assumes that both committee and profile are binary vectors
-def satisfiesEJR(committee, profile):
-    """
-    This is coNP-complete
-    """
-    k = sum(committee)
-    
-    # calculate for each voter how many representatives he has in committee
-    voterRepr = []
-    for ballot in profile:
-        representatives = 0
-        for c,b in zip(committee, ballot):
-            if c and b:
-                representatives += 1
-        voterRepr.append(representatives)
-
-    for l in range(1, k+1):
-        # calculate all voters with < l representatives
-        underRepres = []
-        for voter, repres in enumerate(voterRepr):
-            if repres < l:
-                underRepres.append(voter)
-
-        minSize = ceil(l * (n/k) - 1e-5)
-
-        # find all subsets of size l * (n/k)
-        for comb in combinations(underRepres, minSize):
-            
-            # count how many alternatives they all agree on
-            approveCount = 0
-            for i in range(m):
-                allApprove = True
-                for voter in comb:
-                    if profile[voter][i] != 1:
-                        allApprove = False
-                if allApprove:
-                    approveCount += 1
-
-            # this should not be >= l if it satisfies EJR
-            if approveCount >= l:
-                return False
-
-    return True
-
-
-
-    
-
-    
-
-    
 
 def cnfExtendedJustifiedRepresentation():
     """
@@ -405,53 +242,165 @@ def cnfExtendedJustifiedRepresentation():
     cnf = []
     for p in tqdm(list(allProfiles())):
         for c in allCommittees():
-            if not satisfiesEJR(toBinaryTuple(c), p):
+            if not satisfiesEJR(c, p):
                 cnf.append([negLiteral(c,p)])
     return cnf
 
 
 def cnfAtLeastOne():
+    """
+    Every profile should give at least a single winning committee
+    """
     cnf = []
     for r in tqdm(list(allProfiles())):
-        clause = []
-        for c in allCommittees():
-            clause.append(posLiteral(c, r))
-        cnf.append(clause)
+        for k in ks:
+            clause = []
+            for c in allCommitteesOfSize(k):
+                clause.append(posLiteral(c, r))
+            cnf.append(clause)
     return cnf
+
 
 def cnfResolute():
+    """
+    Every profile should give exactly one winner
+    """
     cnf = []
-    for r in allProfiles():
-        for c1,c2 in combinations(allCommittees(), 2):
-            cnf.append([negLiteral(c1, r), negLiteral(c2, r)])
+    for r in tqdm(list(allProfiles())):
+        for k in ks:
+            for c1,c2 in combinations(allCommitteesOfSize(k), 2):
+                cnf.append([negLiteral(c1, r), negLiteral(c2, r)])
     return cnf
 
-if __name__ == '__main__':
-    #embed()
-    #exit()
+
+def cnfParetoEfficiency():
+    """
+    Cardinality-based pareto, dont give committees that are dominated
+    """
+    cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlyDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])
+    return cnf
+
+
+def cnfCommitteeMonotonicity():
+    """
+    No candidate should be a part of the committee if k=x, but not k=x+1.
+    Largely untested
+    """
+    cnf  = []
+
+    for profile in tqdm(list(allProfiles())):    
+        
+        # from k to k+1
+        for k in ks[:-1]:
+            for c1 in allCommitteesOfSize(k):
+                clause = [negLiteral(c1, profile)]
+                for c2 in allCommitteesOfSize(k+1):
+                    if isSubsetOf(c1, c2):
+                        clause.append(posLiteral(c2, profile))
+                cnf.append(clause)
+
+        # from k+1 to k
+        for k in ks[1:]:
+            for c1 in allCommitteesOfSize(k):
+                clause = [negLiteral(c1, profile)]
+                for c2 in allCommitteesOfSize(k-1):
+                    if isSubsetOf(c2, c1):
+                        clause.append(posLiteral(c2, profile))
+                cnf.append(clause)
+    return cnf
+
+
+def cnfTiebreakInFavorOfMoreVotes():
+    """
+    Only allows ties (irresolute) between committees with the same AV score
+    """
     cnf = []
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if votesForCommittee(profile, committee1) != votesForCommittee(profile, committee2):
+                        cnf.append([negLiteral(committee1, profile), negLiteral(committee2, profile)])
+    return cnf
 
+
+# leave this for reasons (specifically, ensuring that 
+# literals still mean the same thing for cached results)
+cnfAtLeastOne()
+
+
+if __name__ == '__main__':
+    
+    """
+    indicate here which axioms to use. For example, uncommenting
+    atleastone, proportionality, paretoefficiency and strategyproofness
+    for optimistic and pessimistic voters gives out main result
+    """
+    
+    cnf = []
+    print("cnfAtLeastOne:", file=stderr)
     cnf += cnfAtLeastOne()
-    print("Added 'at least one' constraint")
+    #print("cnfResolute:", file=stderr)
     #cnf += cnfResolute()
+    #print("cnfStrategyproofness:", file=stderr)
     #cnf += cnfStrategyproofness()
-    #cnf += cnfProportionalityUniversal()
-    #print("Added proportionality constraint")
-    #cnf += cnfSSMWOPI()
-    #print("Added SSMWOPI constraint")
-    cnf += cnfPAV()
-    #print("Added PAV constraint")
-    cnf += cnfExtendedJustifiedRepresentation()
-    print("Added JR")
-
+    #print("cnfAnonymity", file=stderr)
+    #cnf += cnfAnonymity()
+    #print("cnfNeutrality", file=stderr)
+    #cnf += cnfNeutrality()
+    print('cnfProportionality:', file=stderr)
+    cnf += cnfProportionality()
+    #print("cnfPAV")
+    #cnf += cnfPAV()
+    #print("cnfJustifiedRepresentation", file=stderr)
+    #cnf += cnfJustifiedRepresentation()
+    #print("cnfExtendedJustifiedRepresentation", file=stderr)
+    #cnf += cnfExtendedJustifiedRepresentation()
+    #print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
     #cnf += cnfPessimisticCardinalityStrategyproofness()
-    print("Added immune to pessimism")
+    #print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
     #cnf += cnfOptimisticCardinalityStrategyproofness()
-    print("Added immune to optimism")
-    print("Solving...")
-    ans = pylgl.solve(cnf)
-    a = sorted([x for x in ans if x>0])
-    for i in a:
-        l = int2lit[i]
-        #if l[0] != (0,1,2):
-        print(l)
+    #print("cnfCommitteeMonotonicity:", file=stderr)
+    #cnf += cnfCommitteeMonotonicity()
+    print("cnfParetoEfficiency", file=stderr)
+    cnf += cnfParetoEfficiency()
+    #print("cnfTiebreakInFavorOfMoreVotes")
+    #cnf += cnfTiebreakInFavorOfMoreVotes()
+    #print("cnfWeakParetoEfficiency")
+    #cnf += cnfWeakParetoEfficiency()
+    print("cnfOptimisticSupersetStrategyproofness")
+    cnf += cnfOptimisticSupersetStrategyproofness()
+    print("cnfPessimisticSupersetStrategyproofness")
+    cnf += cnfPessimisticSupersetStrategyproofness()
+
+    print("Solving...", file=stderr)
+
+
+
+    # Prints how many voting rules there are according to the specifications
+    # First counts up to 50, and then only shows the count every 100 found
+    # Finally prints an example of a voting rule
+    counter = 0    
+    for sol in pylgl.itersolve(cnf):
+        counter += 1
+        if(counter % 100 == 0 or counter <= 50):
+            print(counter)
+    print(counter)
+    if counter:
+        ans = pylgl.solve(cnf)
+        a = sorted([x for x in ans if x>0])
+        for i in a:
+            l = int2lit[i]
+            print("{} elects: {}".format(l[1], l[0]))
+    else:
+        print("UNSATISFIABLE")
+
+
+
+
