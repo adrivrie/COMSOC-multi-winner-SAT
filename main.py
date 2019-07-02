@@ -187,6 +187,54 @@ def cnfPessimisticSupersetStrategyproofness():
                     cnf.append(clause)
     return cnf
 
+@cache("cnf_optim_subset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfOptimisticSubsetStrategyproofness():
+    """
+    Subset-strategyproofness with respect to optimistic voters
+
+    This corresponds to Peter's strategyproofness, but adapted for optimistic voters in the irresolute case
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                # if i's ballot is not a strict subset, 
+                # this axiom does nothing
+                if not isSubsetOf(p2[i], p1[i]):
+                    continue
+                for c2 in allCommittees():
+                    k=sum(c2)
+                    clause = [negLiteral(c2, p2)]
+                    for c1 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c1, c2, p1):
+                            clause.append(posLiteral(c1, p1))
+                    cnf.append(clause)
+    return cnf
+
+@cache("cnf_pess_subset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfPessimisticSubsetStrategyproofness():
+    """
+    Subset-strategyproofness with respect to pessimistic voters
+
+    This corresponds to Peter's strategyproofness, but adapted for pessimistic voters in the irresolute case
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                # if i's ballot is not a strict subset, 
+                # this axiom does nothing
+                if not isSubsetOf(p2[i], p1[i]):
+                    continue
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    clause = [negLiteral(c1, p1)]
+                    for c2 in allCommitteesOfSize(k):
+                        if not strictlyBetter(i, c1, c2, p1):
+                            clause.append(posLiteral(c2, p2))
+                    cnf.append(clause)
+    return cnf
+
 def cnfWeakParetoEfficiency():
     """
     Don't return a committee if there is another committee where every
@@ -339,7 +387,7 @@ if __name__ == '__main__':
     
     """
     indicate here which axioms to use. For example, uncommenting
-    atleastone, proportionality, paretoefficiency and strategyproofness
+    atleastone, proportionality, paretoefficiency and some strategyproofness
     for optimistic and pessimistic voters gives out main result
     """
     
@@ -374,10 +422,14 @@ if __name__ == '__main__':
     #cnf += cnfTiebreakInFavorOfMoreVotes()
     #print("cnfWeakParetoEfficiency")
     #cnf += cnfWeakParetoEfficiency()
-    print("cnfOptimisticSupersetStrategyproofness")
-    cnf += cnfOptimisticSupersetStrategyproofness()
-    print("cnfPessimisticSupersetStrategyproofness")
-    cnf += cnfPessimisticSupersetStrategyproofness()
+    #print("cnfOptimisticSupersetStrategyproofness")
+    #cnf += cnfOptimisticSupersetStrategyproofness()
+    #print("cnfPessimisticSupersetStrategyproofness")
+    #cnf += cnfPessimisticSupersetStrategyproofness()
+    print("cnfOptimisticSubsetStrategyproofness")
+    cnf += cnfOptimisticSubsetStrategyproofness()
+    print("cnfPessimisticSubsetStrategyproofness")
+    cnf += cnfPessimisticSubsetStrategyproofness()
 
     print("Solving...", file=stderr)
 
