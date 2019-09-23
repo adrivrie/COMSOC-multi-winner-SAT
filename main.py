@@ -113,6 +113,64 @@ def cnfStrategyproofness():
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
     return cnf
 
+@cache("cnf_kelly_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyCardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness for Kelly ranking of sets
+    """
+    cnf  = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c2 in allCommittees():
+                    k = sum(c2)
+                    card = cardinalityOfOverlap(p1[i], c2)
+                    for c1 in allCommitteesOfSize(k):
+                        if cardinalityOfOverlap(p1[i], c1) < card:
+                            clause = [negLiteral(c2, p2), negLiteral(c1, p1)]
+                            cnf.append(clause)
+    return cnf
+
+
+@cache("cnf_kelly_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellySupersetStrategyproofness():
+    """
+    Superset-strategyproofness for Kelly ranking of sets
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    for c2 in allCommitteesOfSize(k):
+                        if strictlyBetter(i, c1, c2, p1):
+                            clause = [negLiteral(c1, p1), negLiteral(c2, p2)]
+                            cnf.append(clause)
+    return cnf
+
+
+@cache("cnf_kelly2_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKelly2CardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness for Kelly ranking of sets
+    This is an alternative way of generating the clauses that should be
+    equivalent to cnfKellyCardinalityStrategyproofness
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+
+                    card = cardinalityOfOverlap(p1[i], c1)
+                    for c2 in allCommitteesOfSize(k):
+                        if cardinalityOfOverlap(p1[i], c2) > card:
+                            clause = [negLiteral(c1, p1), negLiteral(c2, p2)]
+                            cnf.append(clause)
+    return cnf
+
 @cache("cnf_optim_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfOptimisticCardinalityStrategyproofness():
     """
@@ -400,10 +458,10 @@ if __name__ == '__main__':
     #cnf += cnfStrategyproofness()
     #print("cnfAnonymity", file=stderr)
     #cnf += cnfAnonymity()
-    #print("cnfNeutrality", file=stderr)
-    #cnf += cnfNeutrality()
-    print('cnfProportionality:', file=stderr)
-    cnf += cnfProportionality()
+    print("cnfNeutrality", file=stderr)
+    cnf += cnfNeutrality()
+    #print('cnfProportionality:', file=stderr)
+    #cnf += cnfProportionality()
     #print("cnfPAV")
     #cnf += cnfPAV()
     #print("cnfJustifiedRepresentation", file=stderr)
@@ -416,8 +474,8 @@ if __name__ == '__main__':
     #cnf += cnfOptimisticCardinalityStrategyproofness()
     #print("cnfCommitteeMonotonicity:", file=stderr)
     #cnf += cnfCommitteeMonotonicity()
-    print("cnfParetoEfficiency", file=stderr)
-    cnf += cnfParetoEfficiency()
+    #print("cnfParetoEfficiency", file=stderr)
+    #cnf += cnfParetoEfficiency()
     #print("cnfTiebreakInFavorOfMoreVotes")
     #cnf += cnfTiebreakInFavorOfMoreVotes()
     #print("cnfWeakParetoEfficiency")
@@ -426,11 +484,16 @@ if __name__ == '__main__':
     #cnf += cnfOptimisticSupersetStrategyproofness()
     #print("cnfPessimisticSupersetStrategyproofness")
     #cnf += cnfPessimisticSupersetStrategyproofness()
-    print("cnfOptimisticSubsetStrategyproofness")
-    cnf += cnfOptimisticSubsetStrategyproofness()
-    print("cnfPessimisticSubsetStrategyproofness")
-    cnf += cnfPessimisticSubsetStrategyproofness()
-
+    #print("cnfOptimisticSubsetStrategyproofness")
+    #cnf += cnfOptimisticSubsetStrategyproofness()
+    #print("cnfPessimisticSubsetStrategyproofness")
+    #cnf += cnfPessimisticSubsetStrategyproofness()
+    #print("cnfKellyCardinalityStrategyproofness")
+    #cnf += cnfKellyCardinalityStrategyproofness()
+    #print("cnfKelly2CardinalityStrategyproofness")
+    #cnf += cnfKelly2CardinalityStrategyproofness()
+    print("cnfKellySupersetStrategyproofness")
+    cnf += cnfKellySupersetStrategyproofness()
     print("Solving...", file=stderr)
 
 
@@ -444,7 +507,7 @@ if __name__ == '__main__':
         if(counter % 100 == 0 or counter <= 50):
             print(counter)
     print(counter)
-    if counter:
+    if False:
         ans = pylgl.solve(cnf)
         a = sorted([x for x in ans if x>0])
         for i in a:
