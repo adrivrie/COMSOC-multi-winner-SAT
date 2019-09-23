@@ -134,6 +134,64 @@ def cnfStrategyproofness():
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
     return cnf
 
+@cache("cnf_kelly_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyCardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness for Kelly ranking of sets
+    """
+    cnf  = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c2 in allCommittees():
+                    k = sum(c2)
+                    card = cardinalityOfOverlap(p1[i], c2)
+                    for c1 in allCommitteesOfSize(k):
+                        if cardinalityOfOverlap(p1[i], c1) < card:
+                            clause = [negLiteral(c2, p2), negLiteral(c1, p1)]
+                            cnf.append(clause)
+    return cnf
+
+
+@cache("cnf_kelly_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellySupersetStrategyproofness():
+    """
+    Superset-strategyproofness for Kelly ranking of sets
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    for c2 in allCommitteesOfSize(k):
+                        if strictlyBetter(i, c1, c2, p1):
+                            clause = [negLiteral(c1, p1), negLiteral(c2, p2)]
+                            cnf.append(clause)
+    return cnf
+
+
+@cache("cnf_kelly2_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKelly2CardinalityStrategyproofness():
+    """
+    Cardinality-strategyproofness for Kelly ranking of sets
+    This is an alternative way of generating the clauses that should be
+    equivalent to cnfKellyCardinalityStrategyproofness
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+
+                    card = cardinalityOfOverlap(p1[i], c1)
+                    for c2 in allCommitteesOfSize(k):
+                        if cardinalityOfOverlap(p1[i], c2) > card:
+                            clause = [negLiteral(c1, p1), negLiteral(c2, p2)]
+                            cnf.append(clause)
+    return cnf
+
 @cache("cnf_optim_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfOptimisticCardinalityStrategyproofness():
     """
@@ -473,7 +531,10 @@ if __name__ == '__main__':
         cnfProportionalityVotingRule,
         cnfNeutrality,
         cnfAnonymity,
-        cnfStrategyproofness,
+        cnfStrategyproofness,,
+        cnfKellyCardinalityStrategyproofness,
+        cnfKellySupersetStrategyproofness,
+        cnfKelly2CardinalityStrategyproofness,
         cnfOptimisticCardinalityStrategyproofness,
         cnfPessimisticCardinalityStrategyproofness,
         cnfOptimisticSupersetStrategyproofness,
