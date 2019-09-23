@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 from math import factorial, ceil
-from itertools import product, combinations, permutations
+from itertools import product, combinations, permutations, chain
 import pylgl
 from sys import stderr
 from tqdm import tqdm
@@ -55,6 +55,27 @@ def cnfPAV():
                     cnf.append([negLiteral(c,p)])
     return cnf
 
+@cache("cnf_propvotingrule_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfProportionalityVotingRule():
+    """
+    Requires every proportional committee to win, and every 
+    non-proportional committee to lose. Therefore completely
+    specifies a voting rule
+    """
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for k in ks:
+            for c in allCommitteesOfSize(k):
+                negged = False
+                if isPartylistProfile(p):
+                    for a in allAlternatives():
+                        if p.count(singletonBallot(a)) >= n/k-1e-5:
+                            if not c[a]:
+                                cnf.append([negLiteral(c, p)])
+                                negged=True
+                if not negged:
+                    cnf.append([posLiteral(c, p)])
+    return cnf
 
 def cnfNeutrality():
     """
@@ -251,6 +272,20 @@ def cnfWeakParetoEfficiency():
     return cnf
 
 
+def cnfParetoEfficiency():
+    """
+    Cardinality-based pareto, dont give committees that are dominated
+    """
+    cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlyDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])
+    return cnf
+
+
 @cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfProportionality():
     """
@@ -321,20 +356,6 @@ def cnfResolute():
     return cnf
 
 
-def cnfParetoEfficiency():
-    """
-    Cardinality-based pareto, dont give committees that are dominated
-    """
-    cnf=[]
-    for profile in tqdm(list(allProfiles())):
-        for k in ks:
-            for committee1 in allCommitteesOfSize(k):
-                for committee2 in allCommitteesOfSize(k):
-                    if strictlyDominates(profile, committee1, committee2):
-                        cnf.append([negLiteral(committee2, profile)])
-    return cnf
-
-
 def cnfCommitteeMonotonicity():
     """
     No candidate should be a part of the committee if k=x, but not k=x+1.
@@ -383,76 +404,99 @@ def cnfTiebreakInFavorOfMoreVotes():
 cnfAtLeastOne()
 
 
+def broad_test(axiom_list, outputfilepath="testresults.txt"):
+    """
+    Tests every combination of axioms in a cnf-like format (which seemed appropriate). Input format as follows:
+
+    axiom_list is an iterable (generally a list) of lists, in 
+    which every element is a function which returns the cnf for 
+    an axiom. Every sublist indicates that one of the axioms within it must be a part of every trial. Thus, a singleton is a 
+    necessary part (which is for example generally appropriate 
+    for atLeastOne).
+
+    Duplicate axioms within a trial as well as duplicate trials are 
+    removed efficiently, so the encoding need not prevent duplicates.
+    """
+    # get every single axiom used (without duplicates)
+    all_used_axioms = set()
+    for sublist in axiom_list:
+        for ax in sublist:
+            all_used_axioms.add(ax)
+
+    # map every axiom to an integer
+    ax2int = {}
+    int2ax = {}
+    for i,ax in enumerate(all_used_axioms):
+        ax2int[ax] = i
+        int2ax[i] = ax
+    # map integers to corresponding cnfs 
+    # allows us to only calculate them once
+    print("Gathering all cnf formulas:")
+    int2cnf = {}
+    for ax, i in ax2int.items():
+        print(ax.__name__)
+        int2cnf[i] = ax()
+
+    # transform axioms given into ints, for easier duplicate removal
+    axiom_list = [[ax2int[ax] for ax in sublist] for sublist in axiom_list]
+
+    # get every trial by taking the cartesian product of input
+    trials = product(*axiom_list)
+    # remove duplicate axioms per trial
+    trials = [tuple(sorted(list(set(x)))) for x in trials]
+
+    # remove duplicate trials
+    trials = list(set(trials))
+    trials.sort()
+    with open(outputfilepath, 'w') as f:
+        print("Solving:")
+        for trial in tqdm(trials):
+            cnf = chain(*[int2cnf[ax] for ax in trial])
+            ans = pylgl.solve(cnf)
+            if ans == "UNSAT":
+                ans = "Unsatisfiable"
+            else:
+                ans = "Satisfiable  "
+            
+            axnames = [int2ax[ax].__name__ for ax in trial]
+            f.write(f"{ans}: {', '.join(axnames)}\n" )
+
 if __name__ == '__main__':
     
     """
-    indicate here which axioms to use. For example, uncommenting
-    atleastone, proportionality, paretoefficiency and some strategyproofness
-    for optimistic and pessimistic voters gives out main result
+    Indicate here which axioms to use. The test takes the cartesian
+    product of sublists and tests all possible unique combinations.
     """
+
+    implemented_axioms = [
+        cnfPAV,
+        cnfProportionalityVotingRule,
+        cnfNeutrality,
+        cnfAnonymity,
+        cnfStrategyproofness,
+        cnfOptimisticCardinalityStrategyproofness,
+        cnfPessimisticCardinalityStrategyproofness,
+        cnfOptimisticSupersetStrategyproofness,
+        cnfPessimisticSupersetStrategyproofness,
+        cnfOptimisticSubsetStrategyproofness,
+        cnfPessimisticSubsetStrategyproofness,
+        cnfWeakParetoEfficiency,
+        cnfParetoEfficiency,
+        cnfProportionality,
+        cnfJustifiedRepresentation,
+        cnfExtendedJustifiedRepresentation,
+        cnfAtLeastOne,
+        cnfResolute,
+        cnfCommitteeMonotonicity,
+        cnfTiebreakInFavorOfMoreVotes
+        ]
+
+    axioms = [
+        [cnfProportionalityVotingRule],
+        [cnfProportionalityVotingRule, cnfAtLeastOne, cnfProportionality, cnfWeakParetoEfficiency, cnfParetoEfficiency, cnfPessimisticCardinalityStrategyproofness, cnfPessimisticSupersetStrategyproofness, cnfPessimisticSubsetStrategyproofness,
+            cnfOptimisticCardinalityStrategyproofness,
+            cnfOptimisticSupersetStrategyproofness,
+            cnfOptimisticSubsetStrategyproofness]
+        ]
     
-    cnf = []
-    print("cnfAtLeastOne:", file=stderr)
-    cnf += cnfAtLeastOne()
-    #print("cnfResolute:", file=stderr)
-    #cnf += cnfResolute()
-    #print("cnfStrategyproofness:", file=stderr)
-    #cnf += cnfStrategyproofness()
-    #print("cnfAnonymity", file=stderr)
-    #cnf += cnfAnonymity()
-    #print("cnfNeutrality", file=stderr)
-    #cnf += cnfNeutrality()
-    print('cnfProportionality:', file=stderr)
-    cnf += cnfProportionality()
-    #print("cnfPAV")
-    #cnf += cnfPAV()
-    #print("cnfJustifiedRepresentation", file=stderr)
-    #cnf += cnfJustifiedRepresentation()
-    #print("cnfExtendedJustifiedRepresentation", file=stderr)
-    #cnf += cnfExtendedJustifiedRepresentation()
-    #print("cnfPessimisticCardinalityStrategyproofness", file=stderr)
-    #cnf += cnfPessimisticCardinalityStrategyproofness()
-    #print('cnfOptimisticCardinalityStrategyproofness', file=stderr)
-    #cnf += cnfOptimisticCardinalityStrategyproofness()
-    #print("cnfCommitteeMonotonicity:", file=stderr)
-    #cnf += cnfCommitteeMonotonicity()
-    print("cnfParetoEfficiency", file=stderr)
-    cnf += cnfParetoEfficiency()
-    #print("cnfTiebreakInFavorOfMoreVotes")
-    #cnf += cnfTiebreakInFavorOfMoreVotes()
-    #print("cnfWeakParetoEfficiency")
-    #cnf += cnfWeakParetoEfficiency()
-    #print("cnfOptimisticSupersetStrategyproofness")
-    #cnf += cnfOptimisticSupersetStrategyproofness()
-    #print("cnfPessimisticSupersetStrategyproofness")
-    #cnf += cnfPessimisticSupersetStrategyproofness()
-    print("cnfOptimisticSubsetStrategyproofness")
-    cnf += cnfOptimisticSubsetStrategyproofness()
-    print("cnfPessimisticSubsetStrategyproofness")
-    cnf += cnfPessimisticSubsetStrategyproofness()
-
-    print("Solving...", file=stderr)
-
-
-
-    # Prints how many voting rules there are according to the specifications
-    # First counts up to 50, and then only shows the count every 100 found
-    # Finally prints an example of a voting rule
-    counter = 0    
-    for sol in pylgl.itersolve(cnf):
-        counter += 1
-        if(counter % 100 == 0 or counter <= 50):
-            print(counter)
-    print(counter)
-    if counter:
-        ans = pylgl.solve(cnf)
-        a = sorted([x for x in ans if x>0])
-        for i in a:
-            l = int2lit[i]
-            print("{} elects: {}".format(l[1], l[0]))
-    else:
-        print("UNSATISFIABLE")
-
-
-
-
+    broad_test(axioms, "possible_voting_rule_results.txt")
