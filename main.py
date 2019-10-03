@@ -134,6 +134,30 @@ def cnfStrategyproofness():
                                 cnf.append([negLiteral(c1, p1), negLiteral(c2, p2)])
     return cnf
 
+
+@cache("cnf_mean_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfMeanCardinalityStrategyproofness():
+    """
+    No voter should be able to increase their expected number of approved
+    candidates by submitting an untruthful ballot, assuming uniformly
+    random tie-breaking.
+
+    Implementation is very complex (computationally), but I doubt it can
+    be better.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        if meanCardinality(Y, p1[i]) > meanCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
+
 @cache("cnf_kelly_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfKellyCardinalityStrategyproofness():
     """
@@ -552,6 +576,7 @@ if __name__ == '__main__':
         cnfNeutrality,
         cnfAnonymity,
         cnfStrategyproofness,
+        cnfMeanCardinalityStrategyproofness,
         cnfKellyCardinalityStrategyproofness,
         cnfKellySupersetStrategyproofness,
         cnfFishburnSupersetStrategyproofness,
@@ -574,11 +599,9 @@ if __name__ == '__main__':
         ]
 
     axioms = [
-        [cnfProportionalityVotingRule],
-        [cnfProportionalityVotingRule, cnfAtLeastOne, cnfProportionality, cnfWeakParetoEfficiency, cnfParetoEfficiency, cnfPessimisticCardinalityStrategyproofness, cnfPessimisticSupersetStrategyproofness, cnfPessimisticSubsetStrategyproofness,
-            cnfOptimisticCardinalityStrategyproofness,
-            cnfOptimisticSupersetStrategyproofness,
-            cnfOptimisticSubsetStrategyproofness]
+        [cnfAtLeastOne],
+        [cnfAtLeastOne, cnfProportionality, cnfJustifiedRepresentation, cnfExtendedJustifiedRepresentation],
+        *[[cnfWeakParetoEfficiency, cnfParetoEfficiency, cnfMeanCardinalityStrategyproofness]]*2
         ]
     
-    broad_test(axioms, "possible_voting_rule_results.txt")
+    broad_test(axioms, "new_stratproof_test.txt")

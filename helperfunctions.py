@@ -1,6 +1,7 @@
 from __future__ import division
 from math import factorial, ceil
-from itertools import product, combinations, permutations
+from fractions import Fraction
+from itertools import product, combinations, permutations, chain
 from sys import stderr
 from copy import deepcopy
 
@@ -43,6 +44,14 @@ def allCommitteesOfSize(k):
         for i in c:
             com[i] = 1
         yield tuple(com)
+
+def allWinningSets():
+    s = list(allCommittees())
+    # from itertools recipe for powerset
+    for W in chain.from_iterable(combinations(s, r) for r in range(len(s)+1)):
+        #only non-empty winning sets are allowed
+        if W:
+            yield W
 
 def singletonBallot(a):
     ballot = [0]*m
@@ -274,3 +283,9 @@ def votesForCommittee(profile, committee):
     for ballot in profile:
         c+= cardinalityOfOverlap(ballot, committee)
     return c
+
+def meanCardinality(winning_set, ballot):
+    result = Fraction(0)
+    for committee in winning_set:
+        result += cardinalityOfOverlap(ballot, committee)
+    return result / len(winning_set)
