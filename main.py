@@ -149,6 +149,26 @@ def cnfKellySupersetStrategyproofness():
                             cnf.append(clause)
     return cnf
 
+@cache("cnf_fishburn_superset_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfFishburnSupersetStrategyproofness():
+    """
+    Superset-strategyproofness for Fishburn ranking of sets
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i, p1):
+                for c1 in allCommittees():
+                    k = sum(c1)
+                    for c2 in allCommitteesOfSize(k):
+                        if strictlyBetter(i, c1, c2, p1):
+                            clause1 = [negLiteral(c1, p1), negLiteral(c2, p2), posLiteral(c1, p2)]
+                            clause2 = [negLiteral(c1, p1), negLiteral(c2, p2), posLiteral(c2, p1)]
+                            cnf.append(clause1)
+                            cnf.append(clause2)
+    return cnf
+
+
 
 @cache("cnf_kelly2_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfKelly2CardinalityStrategyproofness():
@@ -344,7 +364,7 @@ def cnfJustifiedRepresentation():
 def cnfExtendedJustifiedRepresentation():
     """
     In irresolute case: all winners must satisfy
-    """
+    """#
     cnf = []
     for p in tqdm(list(allProfiles())):
         for c in allCommittees():
@@ -458,10 +478,10 @@ if __name__ == '__main__':
     #cnf += cnfStrategyproofness()
     #print("cnfAnonymity", file=stderr)
     #cnf += cnfAnonymity()
-    print("cnfNeutrality", file=stderr)
-    cnf += cnfNeutrality()
-    #print('cnfProportionality:', file=stderr)
-    #cnf += cnfProportionality()
+    #print("cnfNeutrality", file=stderr)
+    #cnf += cnfNeutrality()
+    print('cnfProportionality:', file=stderr)
+    cnf += cnfProportionality()
     #print("cnfPAV")
     #cnf += cnfPAV()
     #print("cnfJustifiedRepresentation", file=stderr)
@@ -492,8 +512,10 @@ if __name__ == '__main__':
     #cnf += cnfKellyCardinalityStrategyproofness()
     #print("cnfKelly2CardinalityStrategyproofness")
     #cnf += cnfKelly2CardinalityStrategyproofness()
-    print("cnfKellySupersetStrategyproofness")
-    cnf += cnfKellySupersetStrategyproofness()
+    #print("cnfKellySupersetStrategyproofness")
+    #cnf += cnfKellySupersetStrategyproofness()
+    print("cnfFishburnSupersetStrategyproofness")
+    cnf += cnfFishburnSupersetStrategyproofness()
     print("Solving...", file=stderr)
 
 
