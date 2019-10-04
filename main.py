@@ -7,6 +7,7 @@ from tqdm import tqdm
 from copy import deepcopy
 from caching import cache
 from helperfunctions import *
+from dimacser import dimacs
 
 # necessary for converting python objects to ints (which pylgl wants)
 # also for transforming back
@@ -604,4 +605,8 @@ if __name__ == '__main__':
         *[[cnfWeakParetoEfficiency, cnfParetoEfficiency, cnfMeanCardinalityStrategyproofness]]*2
         ]
     
-    broad_test(axioms, "new_stratproof_test.txt")
+    #broad_test(axioms, "new_stratproof_test.txt")
+
+    main_result_cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSubsetStrategyproofness() + cnfPessimisticSubsetStrategyproofness() + cnfParetoEfficiency()
+    
+    dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')
