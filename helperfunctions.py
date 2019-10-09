@@ -289,3 +289,9 @@ def meanCardinality(winning_set, ballot):
     for committee in winning_set:
         result += cardinalityOfOverlap(ballot, committee)
     return result / len(winning_set)
+
+def minCardinality(winning_set, ballot):
+    return min([cardinalityOfOverlap(ballot, committee) for committee in winning_set])
+
+def maxCardinality(winning_set, ballot):
+    return max([cardinalityOfOverlap(ballot, committee) for committee in winning_set])

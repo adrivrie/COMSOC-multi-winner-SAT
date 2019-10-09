@@ -159,6 +159,43 @@ def cnfMeanCardinalityStrategyproofness():
     return cnf
 
 
+@cache("cnf_kellyweak_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeakCardinalityStrategyproofness():
+    """
+    Implementation is very complex (computationally), but I doubt it can
+    be better.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        if minCardinality(Y, p1[i]) >= maxCardinality(X, p1[i]) and maxCardinality(Y, p1[i]) > minCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
+
+@cache("cnf_kellyweak2_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeak2CardinalityStrategyproofness():
+    """
+    Implementation is very complex (computationally), but I doubt it can
+    be better.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        if minCardinality(Y, p1[i]) >= maxCardinality(X, p1[i]) and maxCardinality(Y, p1[i]) > maxCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
 @cache("cnf_kelly_card_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfKellyCardinalityStrategyproofness():
     """
@@ -610,5 +647,4 @@ if __name__ == '__main__':
     broad_test(axioms, "result_n4.txt")
 
     #main_result_cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSubsetStrategyproofness() + cnfPessimisticSubsetStrategyproofness() + cnfParetoEfficiency()
-    
     #dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')
