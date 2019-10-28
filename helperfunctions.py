@@ -6,7 +6,7 @@ from sys import stderr
 from copy import deepcopy
 
 #PARAMS
-n=3
+n=4
 m=4
 
 # this sets the starting and end value, for if you want more than 1 value of k. m-1 and m give only k=m-1

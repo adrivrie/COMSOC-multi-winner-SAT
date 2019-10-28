@@ -601,12 +601,14 @@ if __name__ == '__main__':
 
     axioms = [
         [cnfAtLeastOne],
-        [cnfAtLeastOne, cnfProportionality, cnfJustifiedRepresentation, cnfExtendedJustifiedRepresentation],
-        *[[cnfWeakParetoEfficiency, cnfParetoEfficiency, cnfMeanCardinalityStrategyproofness]]*2
+        [cnfProportionality],
+        [cnfParetoEfficiency],
+        [cnfOptimisticCardinalityStrategyproofness],
+        [cnfPessimisticCardinalityStrategyproofness],
         ]
     
-    #broad_test(axioms, "new_stratproof_test.txt")
+    broad_test(axioms, "result_n4.txt")
 
-    main_result_cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSubsetStrategyproofness() + cnfPessimisticSubsetStrategyproofness() + cnfParetoEfficiency()
+    #main_result_cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSubsetStrategyproofness() + cnfPessimisticSubsetStrategyproofness() + cnfParetoEfficiency()
     
-    dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')
+    #dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')
