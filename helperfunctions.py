@@ -6,7 +6,7 @@ from sys import stderr
 from copy import deepcopy
 
 #PARAMS
-n=4
+n=3
 m=4
 
 # this sets the starting and end value, for if you want more than 1 value of k. m-1 and m give only k=m-1
@@ -52,6 +52,15 @@ def allWinningSets():
         #only non-empty winning sets are allowed
         if W:
             yield W
+
+def union(p):
+    union = []
+    for thing in zip(*p):
+        if 1 in thing:
+            union.append(1)
+        else:
+            union.append(0)
+    return tuple(union)
 
 def singletonBallot(a):
     ballot = [0]*m
@@ -129,6 +138,15 @@ def strictlyBetter(voter, committee1, committee2, profile):
 
     return intersection(successes1, successes2) == successes1 and successes2 != successes1
 
+def weaklyBetter(voter, committee1, committee2, profile):
+    """
+    Returns True if committee 2 is weakly better than committee 1, for a
+    certain voter according to a certain (truthful for i) ballotprofile
+    """
+    successes1 = intersection(committee1, profile[voter])
+    successes2 = intersection(committee2, profile[voter])
+
+    return intersection(successes1, successes2) == successes1
 
 def isPartylistProfile(profile):
     """

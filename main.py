@@ -2,6 +2,7 @@ from __future__ import division, print_function
 from math import factorial, ceil
 from itertools import product, combinations, permutations, chain
 import pylgl
+from IPython import embed
 from sys import stderr
 from tqdm import tqdm
 from copy import deepcopy
@@ -172,6 +173,38 @@ def cnfKellyWeakCardinalityStrategyproofness():
                 for X in allWinningSets():
                     for Y in allWinningSets():
                         if minCardinality(Y, p1[i]) >= maxCardinality(X, p1[i]) and maxCardinality(Y, p1[i]) > minCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
+
+@cache("cnf_kellyweak_sup_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeakSupersetStrategyproofness():
+    """
+    Implementation is very complex (computationally), but I doubt it can
+    be better.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        is_better = True
+                        is_same = True
+                        for y in Y:
+                            for x in X:
+                                if not weaklyBetter(i,x,y,p1):
+                                    is_better = False
+                                if not weaklyBetter(i,y,x,p1):
+                                    is_same = False
+
+                        if is_better and not is_same:
+                            #print(p1[i])
+                            #print(X)
+                            #print(Y)
+                            #print("")
                             X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
                             Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
                             cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
@@ -395,7 +428,7 @@ def cnfPessimisticSubsetStrategyproofness():
                             clause.append(posLiteral(c2, p2))
                     cnf.append(clause)
     return cnf
-
+#
 def cnfWeakParetoEfficiency():
     """
     Don't return a committee if there is another committee where every
@@ -444,6 +477,32 @@ def cnfProportionality():
                         for c in allCommitteesOfSize(k):
                             if not c[a]:
                                 cnf.append([negLiteral(c, p)])
+    return cnf
+
+
+@cache("cnf_weakefficiency_{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfWeakEfficiency():
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for k in ks:
+            un = union(p)
+            if sum(un) >= k:
+                for c in allCommitteesOfSize(k):
+                    if not isSubsetOf(c, un, strict=False):
+                        cnf.append([negLiteral(c, p)])
+    return cnf
+
+
+@cache("cnf_nonpartylistproportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfNonPartyListProportionality():
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for a in allAlternatives():
+            for k in ks:
+                if p.count(singletonBallot(a)) >= n/k-1e-5:
+                    for c in allCommitteesOfSize(k):
+                        if not c[a]:
+                            cnf.append([negLiteral(c, p)])
     return cnf
 
 def cnfJustifiedRepresentation():
@@ -638,13 +697,42 @@ if __name__ == '__main__':
 
     axioms = [
         [cnfAtLeastOne],
-        [cnfProportionality],
-        [cnfParetoEfficiency],
-        [cnfOptimisticCardinalityStrategyproofness],
-        [cnfPessimisticCardinalityStrategyproofness],
+        [cnfProportionality, cnfNonPartyListProportionality, cnfJustifiedRepresentation, cnfExtendedJustifiedRepresentation],
+        [cnfParetoEfficiency, cnfWeakParetoEfficiency, cnfWeakEfficiency],
+        [cnfOptimisticCardinalityStrategyproofness,cnfPessimisticCardinalityStrategyproofness, cnfKellyWeakCardinalityStrategyproofness],
+        [cnfOptimisticCardinalityStrategyproofness,cnfPessimisticCardinalityStrategyproofness, cnfKellyWeakCardinalityStrategyproofness],
         ]
     
-    broad_test(axioms, "result_n4.txt")
+    #broad_test(axioms, "final-results.txt")
+    #exit()
 
-    #main_result_cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSubsetStrategyproofness() + cnfPessimisticSubsetStrategyproofness() + cnfParetoEfficiency()
+    
+
+    #cnf = cnfAtLeastOne() + cnfExtendedJustifiedRepresentation() + cnfOptimisticCardinalityStrategyproofness() + cnfPessimisticCardinalityStrategyproofness() +cnfAnonymity() + cnfNeutrality() + cnfWeakParetoEfficiency()  # + cnfParetoEfficiency(
+
+    cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSupersetStrategyproofness() + cnfPessimisticSupersetStrategyproofness() + cnfParetoEfficiency()
+    #cnf = cnfAtLeastOne() + cnfWeakEfficiency()
+    ans = pylgl.solve(cnf)
+
+    lits = []
+    a = sorted([x for x in ans if x>0])
+    for i in a:
+        lit = int2lit[i]
+        lits.append(lit)
+        print("{} elects: {}".format(lit[1], lit[0]))
+    embed()
+
+    exit()
+
+    counter = 0
+    for sol in pylgl.itersolve(cnf):
+        counter += 1
+        if(counter % 100 == 0):
+            print(counter)
+        #a = sorted([int2lit[x] for x in sol if x > 0])
+        #sol_list.append(a)
+        #counter += 1
+    print(counter)
+
+
     #dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')
