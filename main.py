@@ -178,6 +178,48 @@ def cnfKellyWeakCardinalityStrategyproofness():
                             cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
     return cnf
 
+@cache("cnf_kellyweak_card_drop_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeakCardinalityDroppingStrategyproofness():
+    """
+    In this version, a candidate is only 'allowed' to manipulate by 
+    dropping candidates from their ballots.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                # the ivariant must be a subset
+                if not isSubsetOf(p2[i], p1[i]):
+                    continue
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        if minCardinality(Y, p1[i]) >= maxCardinality(X, p1[i]) and maxCardinality(Y, p1[i]) > minCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
+@cache("cnf_kellyweak_card_drop_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeakCardinalityDroppingStrategyproofness():
+    """
+    In this version, a candidate is only 'allowed' to manipulate by 
+    adding candidates to their ballots.
+    """
+    cnf = []
+    for p1 in tqdm(list(allProfiles())):
+        for i in allVoters():
+            for p2 in ivariants(i,p1):
+                # the original ballot must be a subset of the i-variant
+                if not isSubsetOf(p1[i], p2[i]):
+                    continue
+                for X in allWinningSets():
+                    for Y in allWinningSets():
+                        if minCardinality(Y, p1[i]) >= maxCardinality(X, p1[i]) and maxCardinality(Y, p1[i]) > minCardinality(X, p1[i]):
+                            X_is_not_winning_set_for_p1 = [negLiteral(c, p1) if c in X else posLiteral(c, p1) for c in allCommittees()]
+                            Y_is_not_winning_set_for_p2 = [negLiteral(c, p2) if c in Y else posLiteral(c, p2) for c in allCommittees()]
+                            cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
+    return cnf
+
 
 @cache("cnf_kellyweak_sup_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfKellyWeakSupersetStrategyproofness():
