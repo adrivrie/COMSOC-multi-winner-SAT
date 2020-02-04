@@ -4,11 +4,20 @@ from itertools import product, combinations, permutations, chain
 import pylgl
 from IPython import embed
 from sys import stderr
-from tqdm import tqdm
+from tqdm import tqdm as actual_tqdm
 from copy import deepcopy
 from caching import cache
 from helperfunctions import *
 from dimacser import dimacs
+import time
+
+TQDM_ON = True
+
+def tqdm(a): 
+    if TQDM_ON:
+        return actual_tqdm(a)
+    return a
+
 
 # necessary for converting python objects to ints (which pylgl wants)
 # also for transforming back
@@ -57,6 +66,20 @@ def cnfPAV():
                     cnf.append([negLiteral(c,p)])
     return cnf
 
+
+def cnfCoalitionVotingRule():
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for k in ks:
+            for c in allCommitteesOfSize(k):
+                coalition = largestCoalition(p)
+                if isSubsetOf(coalition, c, strict=False):
+                    cnf.append([posLiteral(c,p)])
+                else:
+                    cnf.append([negLiteral(c,p)])
+    return cnf
+
+
 @cache("cnf_propvotingrule_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfProportionalityVotingRule():
     """
@@ -69,14 +92,32 @@ def cnfProportionalityVotingRule():
         for k in ks:
             for c in allCommitteesOfSize(k):
                 negged = False
-                if isPartylistProfile(p):
-                    for a in allAlternatives():
-                        if p.count(singletonBallot(a)) >= n/k-1e-5:
-                            if not c[a]:
-                                cnf.append([negLiteral(c, p)])
-                                negged=True
+                #if isPartylistProfile(p):
+                for a in allAlternatives():
+                    if p.count(singletonBallot(a)) >= n/k-1e-5:
+                        if not c[a]:
+                            cnf.append([negLiteral(c, p)])
+                            negged=True
                 if not negged:
-                    cnf.append([posLiteral(c, p)])
+                    pareto_dom = False
+                    for committee2 in allCommitteesOfSize(k):
+                        if strictlyDominates(p, committee2, c):
+                            pareto_dom = True
+                            break
+
+                    
+                    if pareto_dom:
+                        cnf.append([negLiteral(c, p)])
+                    else:
+                        cnf.append([posLiteral(c, p)])
+
+    """cnf=[]
+    for profile in tqdm(list(allProfiles())):
+        for k in ks:
+            for committee1 in allCommitteesOfSize(k):
+                for committee2 in allCommitteesOfSize(k):
+                    if strictlyDominates(profile, committee1, committee2):
+                        cnf.append([negLiteral(committee2, profile)])"""
     return cnf
 
 def cnfNeutrality():
@@ -199,8 +240,8 @@ def cnfKellyWeakCardinalityDroppingStrategyproofness():
                             cnf.append(X_is_not_winning_set_for_p1 + Y_is_not_winning_set_for_p2)
     return cnf
 
-@cache("cnf_kellyweak_card_drop_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
-def cnfKellyWeakCardinalityDroppingStrategyproofness():
+@cache("cnf_kellyweak_card_add_stratproof_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfKellyWeakCardinalityAddingStrategyproofness():
     """
     In this version, a candidate is only 'allowed' to manipulate by 
     adding candidates to their ballots.
@@ -500,13 +541,11 @@ def cnfParetoEfficiency():
                         cnf.append([negLiteral(committee2, profile)])
     return cnf
 
-
 @cache("cnf_proportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
 def cnfProportionality():
     """
     Corresponds to Peters' weakest proportionality axiom, which he calls 
     "proportionality"
-
     In the irresolute case, states that all winners should satisfy
     proportionality
     """
@@ -519,6 +558,28 @@ def cnfProportionality():
                         for c in allCommitteesOfSize(k):
                             if not c[a]:
                                 cnf.append([negLiteral(c, p)])
+    return cnf
+
+
+@cache("cnf_semipartylistproportionality_n{}m{}k0{}k1{}.pickle".format(n,m,k0,k1))
+def cnfSemiPartylistProportionality():
+    """
+    Corresponds to Peters' weakest proportionality axiom, which he calls 
+    "proportionality"
+
+    In the irresolute case, states that all winners should satisfy
+    proportionality
+    """
+    cnf = []
+    for p in tqdm(list(allProfiles())):
+        for a in allAlternatives():
+            if isSemiPartylistProfile(p, a):
+                for k in ks:
+                    if p.count(singletonBallot(a)) >= n/k-1e-5:
+                        for c in allCommitteesOfSize(k):
+                            if not c[a]:
+                                cnf.append([negLiteral(c, p)])
+
     return cnf
 
 
@@ -709,33 +770,7 @@ if __name__ == '__main__':
     product of sublists and tests all possible unique combinations.
     """
 
-    implemented_axioms = [
-        cnfPAV,
-        cnfProportionalityVotingRule,
-        cnfNeutrality,
-        cnfAnonymity,
-        cnfStrategyproofness,
-        cnfMeanCardinalityStrategyproofness,
-        cnfKellyCardinalityStrategyproofness,
-        cnfKellySupersetStrategyproofness,
-        cnfFishburnSupersetStrategyproofness,
-        cnfKelly2CardinalityStrategyproofness,
-        cnfOptimisticCardinalityStrategyproofness,
-        cnfPessimisticCardinalityStrategyproofness,
-        cnfOptimisticSupersetStrategyproofness,
-        cnfPessimisticSupersetStrategyproofness,
-        cnfOptimisticSubsetStrategyproofness,
-        cnfPessimisticSubsetStrategyproofness,
-        cnfWeakParetoEfficiency,
-        cnfParetoEfficiency,
-        cnfProportionality,
-        cnfJustifiedRepresentation,
-        cnfExtendedJustifiedRepresentation,
-        cnfAtLeastOne,
-        cnfResolute,
-        cnfCommitteeMonotonicity,
-        cnfTiebreakInFavorOfMoreVotes
-        ]
+
 
     axioms = [
         [cnfAtLeastOne],
@@ -752,29 +787,95 @@ if __name__ == '__main__':
 
     #cnf = cnfAtLeastOne() + cnfExtendedJustifiedRepresentation() + cnfOptimisticCardinalityStrategyproofness() + cnfPessimisticCardinalityStrategyproofness() +cnfAnonymity() + cnfNeutrality() + cnfWeakParetoEfficiency()  # + cnfParetoEfficiency(
 
-    cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticSupersetStrategyproofness() + cnfPessimisticSupersetStrategyproofness() + cnfParetoEfficiency()
-    #cnf = cnfAtLeastOne() + cnfWeakEfficiency()
-    ans = pylgl.solve(cnf)
+    #cnf = cnfAtLeastOne() + cnfProportionality() + cnfKellyWeakCardinalityStrategyproofness() + cnfParetoEfficiency()
 
+    implemented_axioms = [
+        cnfNeutrality,
+        cnfAnonymity,
+        cnfKellyWeakCardinalityStrategyproofness,
+        cnfKellyWeakSupersetStrategyproofness,
+        cnfOptimisticCardinalityStrategyproofness,
+        cnfPessimisticCardinalityStrategyproofness,
+        cnfOptimisticSupersetStrategyproofness,
+        cnfPessimisticSupersetStrategyproofness,
+        cnfWeakParetoEfficiency,
+        cnfParetoEfficiency,
+        cnfWeakEfficiency,
+        cnfProportionality,
+        cnfNonPartyListProportionality,
+        cnfSemiPartylistProportionality,
+        cnfJustifiedRepresentation,
+        cnfExtendedJustifiedRepresentation,
+        cnfAtLeastOne,
+        cnfResolute
+        ]   
+
+    implemented_axioms = [
+        cnfOptimisticCardinalityStrategyproofness,
+        cnfPessimisticCardinalityStrategyproofness,
+        cnfParetoEfficiency,
+        cnfProportionality,
+        cnfExtendedJustifiedRepresentation,
+        cnfAtLeastOne
+        ]
+
+    """for ax in implemented_axioms:
+        start = time.time()
+        cnf = ax()
+        end = time.time()
+        axiomName = ax.__name__
+        print(axiomName)
+        #dimacs(cnf, sum([len(x) for x in cnfAtLeastOne()]), len(cnf), 'cnf/' + axiomName + "n5m4k3.cnf")
+        print("{0}: {1} {2}".format(axiomName, len(cnf), end-start))
+        #print("{0}: {1} {2}".format(axiomName, len(cnf), end-start), file=stderr)
+    exit()"""
+
+
+    #cnf = cnfAtLeastOne() + cnfPAV() + cnf
+    #cnf = cnfAtLeastOne() + cnfCoalitionVotingRule() + cnfParetoEfficiency() #cnfOptimisticCardinalityStrategyproofness() + cnfPessimisticCardinalityStrategyproofness() + cnfExtendedJustifiedRepresentation() + cnfWeakParetoEfficiency()
+    #cnf = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticCardinalityStrategyproofness() + cnfProportionalityVotingRule() + cnfParetoEfficiency()
+    #cnf = cnfProportionalityVotingRule() + cnfPessimisticCardinalityStrategyproofness()
+
+
+    #cnf1 = cnfAtLeastOne() + cnfKellyWeakCardinalityDroppingStrategyproofness() + cnfProportionality() + cnfParetoEfficiency() # impossible (3,4,3)
+    #cnf2 = cnfAtLeastOne() + cnfKellyWeakCardinalityAddingStrategyproofness() + cnfProportionality() + cnfParetoEfficiency() + cnfPAV() # possible (3,4,3)
+    #cnf3 = cnfAtLeastOne() + cnfCoalitionVotingRule() + cnfOptimisticCardinalityStrategyproofness() + cnfPessimisticCardinalityStrategyproofness() + cnfExtendedJustifiedRepresentation() + cnfWeakParetoEfficiency() # possible (3,4,3)
+    #cnf4a = cnfAtLeastOne() + cnfKellyCardinalityStrategyproofness() + cnfProportionality() # impossible (3,4,3)
+    #cnf4b = cnfAtLeastOne() + cnfKellyCardinalityStrategyproofness() + cnfWeakEfficiency() # possible (3,4,3)
+    #cnf4c = cnfAtLeastOne() + cnfKellyCardinalityStrategyproofness() + cnfParetoEfficiency() #possible (3,4,3)
+    #cnf6a = cnfAtLeastOne() + cnfKellyWeakSupersetStrategyproofness() + cnfParetoEfficiency() + cnfProportionality() # possible (3,4,3)
+    #cnf6b = cnfAtLeastOne() + cnfKellyWeakSupersetStrategyproofness() + cnfParetoEfficiency() + cnfSemiPartylistProportionality()  #impossible (3,4,3)
+    #cnf7 = cnfAtLeastOne() + cnfProportionality() + cnfOptimisticCardinalityStrategyproofness() + cnfProportionalityVotingRule() + cnfParetoEfficiency() # possible (3,4,3)
+    #cnf8a = cnfAtLeastOne() + cnfProportionality() + cnfPessimisticCardinalityStrategyproofness() + cnfParetoEfficiency() # possible (3,4,3)
+    #cnf8b = cnfAtLeastOne() + cnfSemiPartylistProportionality() + cnfPessimisticCardinalityStrategyproofness() + cnfParetoEfficiency() # impossible (3,4,3)
+
+
+
+
+    cnf = cnfAtLeastOne() + cnfOptimisticCardinalityStrategyproofness() + cnfPessimisticCardinalityStrategyproofness() + cnfProportionality() #+ cnfParetoEfficiency()
+
+    #dimacs(cnf, sum([len(x) for x in cnfAtLeastOne()]), len(cnf), 'cnf/kellyc+prop+par-343.cnf')
+    #t1 = time.time()
+    ans = pylgl.solve(cnf)
+    #t2 = time.time()
+    #print(t2 - t1)
+    #embed()
     lits = []
     a = sorted([x for x in ans if x>0])
     for i in a:
         lit = int2lit[i]
         lits.append(lit)
         print("{} elects: {}".format(lit[1], lit[0]))
-    embed()
 
-    exit()
 
-    counter = 0
+    """counter = 0
     for sol in pylgl.itersolve(cnf):
         counter += 1
         if(counter % 100 == 0):
             print(counter)
-        #a = sorted([int2lit[x] for x in sol if x > 0])
+        a = sorted([int2lit[x] for x in sol if x > 0])
         #sol_list.append(a)
-        #counter += 1
-    print(counter)
+        counter += 1
+    print(counter)"""
 
 
-    #dimacs(main_result_cnf, len([*[cnfAtLeastOne]]), len(main_result_cnf), 'mainresult.dimacs')

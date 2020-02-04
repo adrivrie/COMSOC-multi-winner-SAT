@@ -4,6 +4,7 @@ import os
 import pickle
 import inspect
 
+CACHE_ON = True
 
 def cache(cachefile, directory="./caches/"):
     """
@@ -23,7 +24,7 @@ def cache(cachefile, directory="./caches/"):
             if os.path.exists(directory+cachefile):
                 with open(directory+cachefile, 'rb') as cachehandle:
                     contents = pickle.load(cachehandle)
-                    if contents[1] == inspect.getsource(fn):
+                    if CACHE_ON and contents[1] == inspect.getsource(fn):
                         print("Using cached result from '%s'" % (directory+cachefile))
                         return contents[0]
 
@@ -31,9 +32,10 @@ def cache(cachefile, directory="./caches/"):
             res = fn(*args, **kwargs)
 
             # write to cache file
-            with open(directory+cachefile, 'wb') as cachehandle:
-                print("saving result to cache '%s'" % (directory+cachefile))
-                pickle.dump((res, inspect.getsource(fn)), cachehandle)
+            if CACHE_ON:
+                with open(directory+cachefile, 'wb') as cachehandle:
+                    print("saving result to cache '%s'" % (directory+cachefile))
+                    pickle.dump((res, inspect.getsource(fn)), cachehandle)
 
             return res
 

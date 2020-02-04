@@ -7,7 +7,7 @@ from copy import deepcopy
 
 #PARAMS
 n=3
-m=4
+m=5
 
 # this sets the starting and end value, for if you want more than 1 value of k. m-1 and m give only k=m-1
 k0 = m-1
@@ -106,6 +106,72 @@ def approvalCount(voter, profile, committee):
             c+=1
     return c
 
+def ballotUnion(ballot1, ballot2):
+    result = []
+
+    for b1,b2 in zip(ballot1, ballot2):
+        if b1 or b2:
+            result.append(1)
+        else:
+            result.append(0)
+    return tuple(result)
+
+
+# Note: only works for (3, 4, 3)
+def largestCoalition(profile):
+        
+    coal_1 = list(combinations(allVoters(), 1))
+    coal_2 = list(combinations(allVoters(), 2))
+    
+
+    poss_coalitions = coal_1 + coal_2 + [tuple(allVoters())]
+
+    largest_coal = []
+    largest_union = (0,)*m
+    largest_count = 0
+    prev_union = (0,)*m
+    for coal in poss_coalitions:
+        b_union = (0,)*m
+        possible = True
+        for i in coal:
+            if sum(profile[i]) == 0:
+                possible = False
+            b_union = ballotUnion(b_union, profile[i])
+
+        if possible and sum(b_union) <= len(coal):
+            if len(coal) == len(largest_coal):
+                largest_count += 1
+            if len(coal) > len(largest_coal):
+                if largest_count == 1:
+                    prev_union = largest_union
+
+                largest_count = 1
+                largest_coal = coal
+                largest_union = b_union
+
+    if largest_count > 1:
+        largest_union = prev_union
+            
+    return largest_union
+        
+
+    """p_union = union(profile)
+
+    if(sum(p_union) < 4 and sum(profile[0]) != 0 and sum(profile[1]) != 0 and sum(profile[2]) != 0):
+        return p_union
+    for v1, v2 in [[0,1], [1,2], [0,2]]:
+        b_union = ballotUnion(profile[v1], profile[v2])
+        if sum(b_union) <= 2 and sum(profile[v1]) != 0 and sum(profile[v2]) != 0:
+            return b_union
+
+    for v in range(3):
+        b_single = profile[v]
+        if sum(b_single) == 1:
+            return b_single
+
+    return (0,0,0,0)"""
+
+
 def isSubsetOf(ballot1, ballot2, strict=True):
     for b1,b2 in zip(ballot1, ballot2):
         if b1 and not b2:
@@ -159,6 +225,13 @@ def isPartylistProfile(profile):
         if sum(e)>1:
             return False
     return True
+
+def isSemiPartylistProfile(profile, a):
+    for ballot in profile:
+        if not (ballot[a] == 0 or (sum(ballot) == 1 and ballot[a] == 1)):
+            return False
+    return True
+
 
 def PAVscore(profile, committee):
     """
